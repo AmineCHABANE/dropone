@@ -32,6 +32,14 @@
       "dest": "frontend/manifest.json"
     },
     {
+      "src": "/app",
+      "dest": "frontend/index.html"
+    },
+    {
+      "src": "^/$",
+      "dest": "frontend/index.html"
+    },
+    {
       "src": "/(.*)",
       "dest": "frontend/$1"
     }
