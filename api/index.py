@@ -24,7 +24,8 @@ import stripe
 from openai import OpenAI
 
 import database as db
-from catalog import PRODUCTS, get_product, get_trending, search_products
+import catalog as catalog_mod
+from catalog import get_product, get_trending, search_products, get_categories, get_products_by_category
 from store_generator import generate_store, generate_store_page, generate_success_page
 from content_ai import generate_content, calculate_ad_budget
 from multi_store import get_collections, get_collection, suggest_upsells, generate_collection_with_ai
@@ -156,13 +157,15 @@ async def health():
 @app.get("/api/config")
 async def get_config():
     """Return public-safe config for the frontend."""
+    await catalog_mod.ensure_catalog()
+    products = catalog_mod._get_products()
     return {
         "supabase_url": os.getenv("SUPABASE_URL", ""),
         "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
         "app_url": APP_URL,
         "google_auth_enabled": bool(os.getenv("SUPABASE_ANON_KEY")),
-        "categories": sorted(set(p["category"] for p in PRODUCTS)),
-        "total_products": len(PRODUCTS),
+        "categories": sorted(set(p["category"] for p in products)),
+        "total_products": len(products),
     }
 
 
@@ -172,23 +175,40 @@ async def get_config():
 @app.get("/api/products")
 async def list_products(category: Optional[str] = None, sort: str = "trending",
                         q: Optional[str] = None, limit: int = 20, offset: int = 0):
+    await catalog_mod.ensure_catalog()
+    products = catalog_mod._get_products()
     if q:
         prods = search_products(q)
     elif category:
-        prods = [p for p in PRODUCTS if p["category"] == category]
+        prods = get_products_by_category(category)
     else:
-        prods = get_trending() if sort == "trending" else PRODUCTS
+        prods = get_trending(limit=200) if sort == "trending" else products
     total = len(prods)
     return {"products": prods[offset:offset + limit], "total": total,
-            "categories": sorted(set(p["category"] for p in PRODUCTS))}
+            "categories": sorted(set(p["category"] for p in products))}
 
 
 @app.get("/api/products/{product_id}")
 async def get_product_detail(product_id: str):
+    await catalog_mod.ensure_catalog()
     p = get_product(product_id)
     if not p:
         raise HTTPException(404, "Product not found")
     return p
+
+
+@app.get("/api/catalog/stats")
+async def catalog_stats():
+    """Catalog health: product count, sync time, margins."""
+    await catalog_mod.ensure_catalog()
+    return catalog_mod.get_catalog_stats()
+
+
+@app.post("/api/catalog/sync")
+async def force_catalog_sync():
+    """Force re-sync catalog from CJ (admin use)."""
+    await catalog_mod.sync_catalog()
+    return catalog_mod.get_catalog_stats()
 
 
 # ---------------------------------------------------------------------------
@@ -630,18 +650,31 @@ async def _process_completed_order(store, customer_email, customer_name,
     # -----------------------------------------------------------------------
     try:
         cj_vid = product.get("cj_vid", "")
+        cj_pid = product.get("cj_pid", "")
 
-        # If no cached vid, search CJ for the product now
-        if not cj_vid and product_id:
+        # Get cj_pid from catalog if not in store's product_data
+        if not cj_pid and product_id:
+            cat_product = get_product(product_id)
+            if cat_product:
+                cj_pid = cat_product.get("cj_pid", "")
+
+        # Get variant ID from CJ product detail
+        if not cj_vid and cj_pid:
+            detail = await cj_client.get_product(cj_pid)
+            if detail and detail.get("variants"):
+                cj_vid = detail["variants"][0].get("vid", "")
+                logger.info(f"Got CJ vid={cj_vid} from pid={cj_pid}")
+
+        # Fallback: search by name
+        if not cj_vid:
             cj_result = await cj_client.search_products(product.get("name", ""), page=1, page_size=1)
             if cj_result:
-                cj_prod = cj_result[0]
-                pid = cj_prod.get("pid", "")
+                pid = cj_result[0].get("pid", "")
                 if pid:
                     detail = await cj_client.get_product(pid)
                     if detail and detail.get("variants"):
                         cj_vid = detail["variants"][0].get("vid", "")
-                        logger.info(f"Found CJ vid={cj_vid} for {product_id}")
+                        logger.info(f"Found CJ vid={cj_vid} via name search")
 
         if cj_vid and shipping_address:
             addr = shipping_address if isinstance(shipping_address, dict) else {}

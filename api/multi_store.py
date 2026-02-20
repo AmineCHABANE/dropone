@@ -13,7 +13,7 @@ Features:
 import random
 import logging
 from typing import Optional
-from catalog import PRODUCTS, get_product
+from catalog import get_product, _get_products
 
 logger = logging.getLogger("dropone.multistore")
 
@@ -26,7 +26,8 @@ COLLECTIONS = [
         "id": "bedroom-vibes",
         "name": "🌙 Bedroom Vibes",
         "tagline": "Transforme ta chambre en espace cozy",
-        "product_ids": ["home-004", "home-001", "tech-001", "home-003"],
+        "pick_categories": ["home", "tech"],
+        "pick_count": 4,
         "color": "#6366f1",
         "emoji": "🌙",
         "category_focus": "home",
@@ -35,7 +36,8 @@ COLLECTIONS = [
         "id": "self-care-kit",
         "name": "✨ Self-Care Kit",
         "tagline": "Ta routine beauté complète",
-        "product_ids": ["beauty-001", "beauty-002", "beauty-003", "premium-002"],
+        "pick_categories": ["beauty"],
+        "pick_count": 4,
         "color": "#ec4899",
         "emoji": "✨",
         "category_focus": "beauty",
@@ -44,7 +46,8 @@ COLLECTIONS = [
         "id": "tech-essentials",
         "name": "📱 Tech Essentials",
         "tagline": "Les gadgets que tout le monde veut",
-        "product_ids": ["tech-004", "tech-002", "tech-003", "premium-001"],
+        "pick_categories": ["tech"],
+        "pick_count": 4,
         "color": "#3b82f6",
         "emoji": "📱",
         "category_focus": "tech",
@@ -53,7 +56,8 @@ COLLECTIONS = [
         "id": "fitness-starter",
         "name": "💪 Fitness Starter Pack",
         "tagline": "Tout pour commencer ta transformation",
-        "product_ids": ["fit-001", "fit-002", "fit-003"],
+        "pick_categories": ["fitness"],
+        "pick_count": 3,
         "color": "#22c55e",
         "emoji": "💪",
         "category_focus": "fitness",
@@ -62,7 +66,8 @@ COLLECTIONS = [
         "id": "gift-box",
         "name": "🎁 Gift Box",
         "tagline": "Les meilleures idées cadeaux",
-        "product_ids": ["home-002", "fashion-001", "home-004", "home-003"],
+        "pick_categories": ["home", "fashion", "beauty"],
+        "pick_count": 4,
         "color": "#f97316",
         "emoji": "🎁",
         "category_focus": "gift",
@@ -71,7 +76,8 @@ COLLECTIONS = [
         "id": "pet-paradise",
         "name": "🐾 Pet Paradise",
         "tagline": "Ton animal va t'adorer",
-        "product_ids": ["pet-001", "pet-002"],
+        "pick_categories": ["pet"],
+        "pick_count": 3,
         "color": "#eab308",
         "emoji": "🐾",
         "category_focus": "pet",
@@ -80,23 +86,27 @@ COLLECTIONS = [
 
 
 def get_collections() -> list[dict]:
-    """Get all available themed collections with full product data."""
+    """Get all themed collections, picking top products by category dynamically."""
+    all_products = _get_products()
     result = []
+
     for col in COLLECTIONS:
-        products = []
-        total_cost = 0
-        total_suggested = 0
-        for pid in col["product_ids"]:
-            p = get_product(pid)
-            if p:
-                products.append(p)
-                total_cost += p["cost"]
-                total_suggested += p["suggested_price"]
+        # Pick top products from the specified categories
+        candidates = [
+            p for p in all_products
+            if p["category"] in col["pick_categories"]
+        ]
+        # Sort by trending score, take top N
+        candidates.sort(key=lambda p: p.get("trending_score", 0), reverse=True)
+        products = candidates[:col["pick_count"]]
 
         if len(products) < 2:
             continue
 
-        # Bundle discount: 10% off combined price
+        total_cost = sum(p["cost"] for p in products)
+        total_suggested = sum(p["suggested_price"] for p in products)
+
+        # Bundle discount: 10% off
         bundle_price = round(total_suggested * 0.9, 2)
         savings = round(total_suggested - bundle_price, 2)
         avg_margin = round((1 - total_cost / bundle_price) * 100, 1) if bundle_price > 0 else 0
@@ -141,7 +151,7 @@ def suggest_upsells(product_id: str, limit: int = 3) -> list[dict]:
 
     # Score all other products
     candidates = []
-    for p in PRODUCTS:
+    for p in _get_products():
         if p["id"] == product_id:
             continue
 
@@ -193,7 +203,7 @@ async def generate_collection_with_ai(
 
     product_list = "\n".join([
         f"- {p['id']}: {p['name']} (€{p['suggested_price']}, cat: {p['category']}) — {p['short_desc']}"
-        for p in PRODUCTS
+        for p in _get_products()
     ])
 
     try:
