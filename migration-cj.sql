@@ -9,3 +9,10 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS error TEXT DEFAULT '';
 
 -- Index for CJ order lookups
 CREATE INDEX IF NOT EXISTS idx_orders_supplier_order_id ON orders(supplier_order_id) WHERE supplier_order_id != '';
+
+-- Key-value cache for catalog persistence across Vercel cold starts
+CREATE TABLE IF NOT EXISTS kv_cache (
+    id TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT '{}',
+    updated_at TIMESTAMPTZ DEFAULT now()
+);

@@ -273,6 +273,16 @@ def update_order_status(order_id: str, status: str, error: str = ""):
     update_order(order_id, updates)
 
 
+def get_order_by_supplier_id(supplier_order_id: str) -> Optional[dict]:
+    """Find order by CJ supplier order ID."""
+    try:
+        rows = _get("orders", {"supplier_order_id": f"eq.{supplier_order_id}", "select": "*"})
+        return rows[0] if rows else None
+    except Exception as e:
+        logger.error(f"get_order_by_supplier_id: {e}")
+        return None
+
+
 def get_order_stats(email: str) -> dict:
     orders = get_all_orders_for_user(email)
     statuses = {}

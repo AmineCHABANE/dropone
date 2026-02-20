@@ -219,6 +219,7 @@ async def create_store_endpoint(req: CreateStoreRequest):
     if not _check_rate_limit(f"create:{req.user_email}", max_req=5, window=60):
         raise HTTPException(429, "Trop de boutiques créées. Attends une minute.")
 
+    await catalog_mod.ensure_catalog()
     product = get_product(req.product_id)
     if not product:
         raise HTTPException(404, "Product not found")
@@ -522,11 +523,16 @@ async def _capture_paypal(paypal_order_id: str, store: dict):
     payer = data.get("payer", {})
     amount = float(capture.get("amount", {}).get("value", 0))
 
+    # PayPal shipping is in purchase_units, NOT in payer
+    shipping_info = unit.get("shipping", {})
+    shipping_address = shipping_info.get("address", {})
+    shipping_name = shipping_info.get("name", {}).get("full_name", payer.get("name", {}).get("given_name", ""))
+
     await _process_completed_order(
         store=store,
         customer_email=payer.get("email_address", ""),
-        customer_name=payer.get("name", {}).get("given_name", ""),
-        shipping_address=payer.get("address", {}),
+        customer_name=shipping_name,
+        shipping_address=shipping_address,
         amount_paid=amount,
         supplier_cost=supplier_cost,
         commission=commission,
@@ -654,6 +660,7 @@ async def _process_completed_order(store, customer_email, customer_name,
 
         # Get cj_pid from catalog if not in store's product_data
         if not cj_pid and product_id:
+            await catalog_mod.ensure_catalog()
             cat_product = get_product(product_id)
             if cat_product:
                 cj_pid = cat_product.get("cj_pid", "")
@@ -678,16 +685,24 @@ async def _process_completed_order(store, customer_email, customer_name,
 
         if cj_vid and shipping_address:
             addr = shipping_address if isinstance(shipping_address, dict) else {}
+            # Handle both Stripe and PayPal address field names
+            country = addr.get("country") or addr.get("country_code") or "FR"
+            province = addr.get("state") or addr.get("admin_area_1") or addr.get("province") or ""
+            city = addr.get("city") or addr.get("admin_area_2") or ""
+            line1 = addr.get("line1") or addr.get("address_line_1") or ""
+            line2 = addr.get("line2") or addr.get("address_line_2") or ""
+            postal = addr.get("postal_code") or ""
+
             cj_result = await cj_client.place_order(
                 vid=cj_vid,
                 quantity=1,
                 name=customer_name or "Customer",
                 phone=addr.get("phone", ""),
-                country_code=addr.get("country", "FR"),
-                province=addr.get("state", addr.get("province", "")),
-                city=addr.get("city", ""),
-                address=f"{addr.get('line1', '')} {addr.get('line2', '')}".strip(),
-                zip_code=addr.get("postal_code", ""),
+                country_code=country,
+                province=province,
+                city=city,
+                address=f"{line1} {line2}".strip(),
+                zip_code=postal,
                 our_order_id=order_id,
             )
 
@@ -733,36 +748,23 @@ async def cj_webhook(request: Request):
     cj_order_id = payload.get("orderId", "")
     tracking = payload.get("trackingNumber", "")
     carrier = payload.get("logisticsName", "")
-    status = payload.get("orderStatus", "")
 
     if not cj_order_id:
         return {"received": True}
 
-    # Find matching order by supplier_order_id
-    # Search in recent orders
     logger.info(f"CJ webhook: type={event_type} order={cj_order_id} tracking={tracking}")
 
     if tracking:
-        # Try to find order and update tracking
         try:
-            import httpx as _hx
-            rows = _hx.get(
-                f"{os.getenv('SUPABASE_URL','').rstrip('/')}/rest/v1/orders",
-                headers={"apikey": os.getenv("SUPABASE_SERVICE_KEY",""),
-                         "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_KEY','')}"},
-                params={"supplier_order_id": f"eq.{cj_order_id}", "select": "order_id,store_slug"},
-                timeout=10
-            ).json()
-            if rows:
-                order = rows[0]
+            order = db.get_order_by_supplier_id(cj_order_id)
+            if order:
                 db.update_order(order["order_id"], {
                     "tracking_number": tracking,
-                    "carrier": carrier,
+                    "logistics_name": carrier,
                     "status": "shipped",
-                    "shipped_at": datetime.utcnow().isoformat(),
                 })
                 # Notify seller
-                store = db.get_store(order["store_slug"])
+                store = db.get_store(order.get("store_slug", ""))
                 if store:
                     try:
                         await push_mgr.notify_shipped(
@@ -773,6 +775,8 @@ async def cj_webhook(request: Request):
                         )
                     except Exception:
                         pass
+            else:
+                logger.warning(f"CJ webhook: no order found for supplier_id={cj_order_id}")
         except Exception as e:
             logger.error(f"CJ webhook processing: {e}")
 
@@ -892,11 +896,13 @@ async def network_profile(email: str):
 # ---------------------------------------------------------------------------
 @app.get("/api/collections")
 async def list_collections():
+    await catalog_mod.ensure_catalog()
     return {"collections": get_collections()}
 
 
 @app.get("/api/collections/{collection_id}")
 async def get_collection_detail(collection_id: str):
+    await catalog_mod.ensure_catalog()
     col = get_collection(collection_id)
     if not col:
         raise HTTPException(404, "Collection not found")
@@ -905,6 +911,7 @@ async def get_collection_detail(collection_id: str):
 
 @app.get("/api/products/{product_id}/upsells")
 async def get_upsells(product_id: str, limit: int = 3):
+    await catalog_mod.ensure_catalog()
     return {"upsells": suggest_upsells(product_id, limit=limit)}
 
 
