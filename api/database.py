@@ -257,6 +257,22 @@ def update_order(order_id: str, updates: dict):
         logger.error(f"update_order: {e}")
 
 
+def update_order_supplier(order_id: str, supplier_order_id: str):
+    """Store the CJ order ID and mark as processing."""
+    update_order(order_id, {
+        "supplier_order_id": supplier_order_id,
+        "status": "processing",
+    })
+
+
+def update_order_status(order_id: str, status: str, error: str = ""):
+    """Update order status with optional error message."""
+    updates = {"status": status}
+    if error:
+        updates["error"] = error
+    update_order(order_id, updates)
+
+
 def get_order_stats(email: str) -> dict:
     orders = get_all_orders_for_user(email)
     statuses = {}

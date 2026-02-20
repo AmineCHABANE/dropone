@@ -1,603 +1,227 @@
 """
 DropOne — CJ Dropshipping API Client
-Full integration with CJ Dropshipping API v2.0
-Handles: auth, product search, order creation, payment, tracking.
-
-Setup:
-1. Go to cjdropshipping.com → create account
-2. My CJ → Authorization → Stores → API → Generate API Key
-3. Put CJ_API_EMAIL and CJ_API_KEY in .env
-
-Docs: https://developers.cjdropshipping.com/
+Handles: authentication, product search, order placement, tracking.
+API docs: https://developers.cjdropshipping.cn/en/api/api2/
 """
 
 import os
-import time
-import httpx
+import json
 import logging
-from typing import Optional
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+import time
+from typing import Optional, Dict, List
+
+import httpx
 
 logger = logging.getLogger("dropone.cj")
 
-# ---------------------------------------------------------------------------
-# Config
-# ---------------------------------------------------------------------------
-CJ_BASE_URL = "https://developers.cjdropshipping.com/api2.0/v1"
+CJ_API_BASE = "https://developers.cjdropshipping.com/api2.0/v1"
+CJ_API_KEY = os.getenv("CJ_API_KEY", "")
 
-# Token cache
-_token_cache = {"token": "", "expires_at": 0}
-
-
-def _get_credentials() -> tuple[str, str]:
-    """Read CJ credentials from env at call time (supports .env loading)."""
-    email = os.getenv("CJ_API_EMAIL", "")
-    key = os.getenv("CJ_API_KEY", "")
-    return email, key
+# Token cache (module-level)
+_token_cache = {
+    "access_token": "",
+    "refresh_token": "",
+    "expires_at": 0,
+    "refresh_expires_at": 0,
+}
 
 
 # ---------------------------------------------------------------------------
-# Data models
+# AUTH
 # ---------------------------------------------------------------------------
-@dataclass
-class CJProduct:
-    pid: str
-    name: str
-    sku: str
-    image: str
-    sell_price: float
-    category: str
-    variants: list = field(default_factory=list)
-    description: str = ""
-    weight: float = 0
-    packing_weight: float = 0
-    shipping_time: str = ""
+async def _get_access_token() -> str:
+    """Get valid access token, refreshing if needed."""
+    now = time.time()
+
+    if _token_cache["access_token"] and now < _token_cache["expires_at"]:
+        return _token_cache["access_token"]
+
+    # Try refresh
+    if _token_cache["refresh_token"] and now < _token_cache["refresh_expires_at"]:
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{CJ_API_BASE}/authentication/refreshAccessToken",
+                    json={"refreshToken": _token_cache["refresh_token"]},
+                )
+                data = resp.json()
+                if data.get("result"):
+                    d = data["data"]
+                    _token_cache["access_token"] = d["accessToken"]
+                    _token_cache["refresh_token"] = d["refreshToken"]
+                    _token_cache["expires_at"] = now + 14 * 86400 - 3600
+                    _token_cache["refresh_expires_at"] = now + 179 * 86400
+                    logger.info("CJ token refreshed")
+                    return _token_cache["access_token"]
+        except Exception as e:
+            logger.warning(f"CJ refresh failed: {e}")
+
+    # New token
+    if not CJ_API_KEY:
+        logger.error("CJ_API_KEY not set")
+        return ""
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                f"{CJ_API_BASE}/authentication/getAccessToken",
+                json={"apiKey": CJ_API_KEY},
+            )
+            data = resp.json()
+            if data.get("result"):
+                d = data["data"]
+                _token_cache["access_token"] = d["accessToken"]
+                _token_cache["refresh_token"] = d["refreshToken"]
+                _token_cache["expires_at"] = now + 14 * 86400 - 3600
+                _token_cache["refresh_expires_at"] = now + 179 * 86400
+                logger.info(f"CJ auth OK, openId={d.get('openId')}")
+                return _token_cache["access_token"]
+            else:
+                logger.error(f"CJ auth failed: {data.get('message')}")
+                return ""
+    except Exception as e:
+        logger.error(f"CJ auth error: {e}")
+        return ""
 
 
-@dataclass
-class CJOrder:
-    cj_order_id: str
-    order_number: str
-    status: str
-    tracking_number: str = ""
-    logistics_name: str = ""
+async def _cj(method: str, endpoint: str, payload: dict = None, params: dict = None) -> dict:
+    """Make authenticated CJ API request."""
+    token = await _get_access_token()
+    if not token:
+        return {"result": False, "message": "No CJ token"}
 
+    url = f"{CJ_API_BASE}/{endpoint}"
+    headers = {"CJ-Access-Token": token, "Content-Type": "application/json"}
 
-@dataclass
-class CJShippingEstimate:
-    logistics_name: str
-    price: float
-    delivery_days_min: int
-    delivery_days_max: int
-
-
-# ---------------------------------------------------------------------------
-# Authentication
-# ---------------------------------------------------------------------------
-async def get_access_token() -> str:
-    """
-    Get CJ access token. Tokens last 24h, cached in memory.
-    
-    API: POST /authentication/getAccessToken
-    Body: { "email": "xxx", "password": "xxx" }  ← password = API key
-    """
-    global _token_cache
-
-    # Return cached token if still valid (with 1h buffer)
-    if _token_cache["token"] and time.time() < _token_cache["expires_at"] - 3600:
-        return _token_cache["token"]
-
-    email, api_key = _get_credentials()
-    if not email or not api_key:
-        raise CJError("CJ_API_EMAIL and CJ_API_KEY must be set in .env")
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{CJ_BASE_URL}/authentication/getAccessToken",
-            json={
-                "email": email,
-                "password": api_key,
-            },
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        raise CJError(f"Auth failed: {data.get('message', 'Unknown error')}")
-
-    token = data["data"]["accessToken"]
-    # Token valid for ~24h
-    _token_cache["token"] = token
-    _token_cache["expires_at"] = time.time() + 86400
-
-    logger.info("CJ access token refreshed")
-    return token
-
-
-async def _headers() -> dict:
-    """Build auth headers for CJ API calls."""
-    token = await get_access_token()
-    return {
-        "CJ-Access-Token": token,
-        "Content-Type": "application/json",
-    }
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            if method == "GET":
+                resp = await client.get(url, headers=headers, params=params)
+            elif method == "PATCH":
+                resp = await client.patch(url, headers=headers, json=payload)
+            else:
+                resp = await client.post(url, headers=headers, json=payload)
+            return resp.json()
+    except Exception as e:
+        logger.error(f"CJ {endpoint}: {e}")
+        return {"result": False, "message": str(e)}
 
 
 # ---------------------------------------------------------------------------
-# Products
+# PRODUCTS
 # ---------------------------------------------------------------------------
-async def search_products(
-    query: str = "",
-    category_id: str = "",
-    page: int = 1,
-    page_size: int = 20,
-    country_code: str = "FR",
-) -> list[CJProduct]:
-    """
-    Search CJ product catalog.
-    
-    API: GET /product/list
-    Params: productNameEn, categoryId, pageNum, pageSize, countryCode
-    """
-    headers = await _headers()
-    params = {
+async def search_products(keyword: str, page: int = 1, page_size: int = 20) -> List[Dict]:
+    """Search CJ products."""
+    data = await _cj("GET", "product/list", params={
+        "productNameEn": keyword,
         "pageNum": page,
         "pageSize": page_size,
-    }
-    if query:
-        params["productNameEn"] = query
-    if category_id:
-        params["categoryId"] = category_id
-    if country_code:
-        params["countryCode"] = country_code
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/product/list",
-            headers=headers,
-            params=params,
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        logger.warning(f"CJ product search failed: {data.get('message')}")
-        return []
-
-    products = []
-    for item in data.get("data", {}).get("list", []):
-        products.append(CJProduct(
-            pid=item.get("pid", ""),
-            name=item.get("productNameEn", ""),
-            sku=item.get("productSku", ""),
-            image=item.get("productImage", ""),
-            sell_price=float(item.get("sellPrice", 0)),
-            category=item.get("categoryName", ""),
-            description=item.get("description", ""),
-        ))
-
-    return products
+    })
+    if data.get("result") and data.get("data"):
+        return data["data"].get("list", [])
+    return []
 
 
-async def get_product_detail(pid: str) -> Optional[CJProduct]:
-    """
-    Get detailed product info including variants.
-    
-    API: GET /product/query?pid=xxx
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/product/query",
-            headers=headers,
-            params={"pid": pid},
-        )
-        data = resp.json()
-
-    if not data.get("result") or not data.get("data"):
-        return None
-
-    item = data["data"]
-    variants = []
-    for v in item.get("variants", []):
-        variants.append({
-            "vid": v.get("vid", ""),
-            "name": v.get("variantNameEn", ""),
-            "sku": v.get("variantSku", ""),
-            "price": float(v.get("variantSellPrice", 0)),
-            "image": v.get("variantImage", ""),
-            "stock": v.get("variantVolume", 0),
-        })
-
-    return CJProduct(
-        pid=item.get("pid", ""),
-        name=item.get("productNameEn", ""),
-        sku=item.get("productSku", ""),
-        image=item.get("productImage", ""),
-        sell_price=float(item.get("sellPrice", 0)),
-        category=item.get("categoryName", ""),
-        variants=variants,
-        description=item.get("description", ""),
-        weight=float(item.get("productWeight", 0)),
-        packing_weight=float(item.get("packingWeight", 0)),
-    )
-
-
-async def get_categories() -> list[dict]:
-    """
-    Get all CJ product categories.
-    
-    API: GET /product/getCategory
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/product/getCategory",
-            headers=headers,
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return []
-
-    return data.get("data", [])
+async def get_product(pid: str) -> Optional[Dict]:
+    """Get product detail by CJ pid."""
+    data = await _cj("GET", "product/query", params={"pid": pid})
+    if data.get("result") and data.get("data"):
+        return data["data"]
+    return None
 
 
 # ---------------------------------------------------------------------------
-# Shipping
+# ORDER PLACEMENT
 # ---------------------------------------------------------------------------
-async def get_shipping_estimate(
-    pid: str,
+async def place_order(
     vid: str,
-    country_code: str = "FR",
-    quantity: int = 1,
-) -> list[CJShippingEstimate]:
-    """
-    Get shipping cost and delivery time estimates.
-    
-    API: POST /logistic/freightCalculate
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(
-            f"{CJ_BASE_URL}/logistic/freightCalculate",
-            headers=headers,
-            json={
-                "startCountryCode": "CN",
-                "endCountryCode": country_code,
-                "products": [{
-                    "quantity": quantity,
-                    "vid": vid,
-                }],
-            },
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return []
-
-    estimates = []
-    for item in data.get("data", []):
-        # Parse delivery days — API returns string "7-15" or int or None
-        aging = str(item.get("logisticAging", "7-15"))
-        try:
-            if "-" in aging:
-                parts = aging.split("-")
-                days_min, days_max = int(parts[0]), int(parts[-1])
-            else:
-                days_min = days_max = int(aging) if aging.isdigit() else 10
-        except (ValueError, IndexError):
-            days_min, days_max = 7, 15
-
-        estimates.append(CJShippingEstimate(
-            logistics_name=item.get("logisticName", ""),
-            price=float(item.get("logisticPrice", 0)),
-            delivery_days_min=days_min,
-            delivery_days_max=days_max,
-        ))
-
-    return sorted(estimates, key=lambda e: e.price)
-
-
-# ---------------------------------------------------------------------------
-# Orders — THE CORE
-# ---------------------------------------------------------------------------
-async def create_order(
-    order_number: str,
-    product_vid: str,
     quantity: int,
-    customer_name: str,
-    customer_email: str,
-    shipping_address: str,
-    shipping_address2: str = "",
-    shipping_city: str = "",
-    shipping_province: str = "",
-    shipping_zip: str = "",
-    shipping_country_code: str = "FR",
-    shipping_country: str = "France",
-    shipping_phone: str = "",
-    house_number: str = "",
-    logistics_name: str = "",
-    from_country_code: str = "CN",
-    pay_type: int = 2,  # 2 = auto pay with CJ balance, 3 = manual pay
-    remark: str = "DropOne order",
-) -> CJOrder:
-    """
-    Create an order on CJ Dropshipping.
-    This is the main fulfillment function.
-    
-    API: POST /shopping/order/createOrderV2
-    
-    payType:
-      2 = Auto pay with CJ wallet balance (recommended)
-      3 = Manual pay later
-      
-    Flow:
-      1. Order created on CJ
-      2. If payType=2, CJ debits your wallet automatically
-      3. CJ picks, packs, and ships
-      4. Tracking number assigned → webhook notification
-      5. Customer receives package
-    """
-    headers = await _headers()
-
+    name: str,
+    phone: str,
+    country_code: str,
+    province: str,
+    city: str,
+    address: str,
+    zip_code: str,
+    our_order_id: str,
+) -> Dict:
+    """Place a real order on CJ. Returns cj_order_id on success."""
     payload = {
-        "orderNumber": order_number,
-        "shippingZip": shipping_zip,
-        "shippingCountry": shipping_country,
-        "shippingCountryCode": shipping_country_code,
-        "shippingProvince": shipping_province,
-        "shippingCity": shipping_city,
-        "shippingPhone": shipping_phone or "0000000000",
-        "shippingCustomerName": customer_name,
-        "shippingAddress": shipping_address,
-        "shippingAddress2": shipping_address2,
-        "email": customer_email,
-        "remark": remark,
-        "logisticName": logistics_name,
-        "fromCountryCode": from_country_code,
-        "houseNumber": house_number,
-        "payType": str(pay_type),
-        "products": [
-            {
-                "vid": product_vid,
-                "quantity": quantity,
-            }
-        ],
+        "orderNumber": our_order_id,
+        "shippingZip": zip_code,
+        "shippingCountryCode": country_code,
+        "shippingCountry": country_code,
+        "shippingProvince": province,
+        "shippingCity": city,
+        "shippingAddress": address,
+        "shippingCustomerName": name,
+        "shippingPhone": phone or "0000000000",
+        "remark": f"DropOne {our_order_id}",
+        "fromCountryCode": "",
+        "logisticName": "",
+        "products": [{"vid": vid, "quantity": quantity}],
     }
 
-    logger.info(f"Creating CJ order: {order_number} → {shipping_country_code}")
+    logger.info(f"CJ order: {our_order_id}, vid={vid}")
+    data = await _cj("POST", "shopping/order/createOrder", payload=payload)
 
-    async with httpx.AsyncClient(timeout=60) as client:
-        resp = await client.post(
-            f"{CJ_BASE_URL}/shopping/order/createOrderV2",
-            headers=headers,
-            json=payload,
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        error_msg = data.get("message", "Unknown CJ error")
-        logger.error(f"CJ order creation failed: {error_msg}")
-        raise CJError(f"Order creation failed: {error_msg}")
-
-    order_data = data.get("data", {})
-
-    cj_order = CJOrder(
-        cj_order_id=str(order_data.get("orderId", "")),
-        order_number=order_number,
-        status="created",
-    )
-
-    logger.info(f"CJ order created: {cj_order.cj_order_id}")
-    return cj_order
+    if data.get("result") and data.get("data"):
+        oid = data["data"].get("orderId", "")
+        logger.info(f"CJ order created: {oid}")
+        return {"success": True, "cj_order_id": oid}
+    return {"success": False, "error": data.get("message", "CJ error")}
 
 
-async def get_order_status(order_id: str) -> Optional[dict]:
-    """
-    Query order status and tracking info.
-    
-    API: GET /shopping/order/getOrderDetail?orderId=xxx
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/shopping/order/getOrderDetail",
-            headers=headers,
-            params={"orderId": order_id},
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return None
-
-    order = data.get("data", {})
-    return {
-        "cj_order_id": order.get("orderId", ""),
-        "order_number": order.get("orderNum", ""),
-        "status": order.get("orderStatus", ""),
-        "tracking_number": order.get("trackNumber", ""),
-        "logistics_name": order.get("logisticName", ""),
-        "shipping_status": order.get("shippingStatus", ""),
-        "create_date": order.get("createDate", ""),
-        "pay_date": order.get("payDate", ""),
-    }
-
-
-async def list_orders(
-    page: int = 1,
-    page_size: int = 20,
-    status: str = "",
-) -> list[dict]:
-    """
-    List all CJ orders.
-    
-    API: GET /shopping/order/list
-    """
-    headers = await _headers()
-    params = {"pageNum": page, "pageSize": page_size}
-    if status:
-        params["orderStatus"] = status
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/shopping/order/list",
-            headers=headers,
-            params=params,
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return []
-
-    return data.get("data", {}).get("list", [])
-
-
-async def confirm_order(order_id: str) -> bool:
-    """
-    Confirm an order for processing.
-    
-    API: PATCH /shopping/order/confirmOrder
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.patch(
-            f"{CJ_BASE_URL}/shopping/order/confirmOrder",
-            headers=headers,
-            json={"orderId": order_id},
-        )
-        data = resp.json()
-
-    return data.get("result", False)
+async def confirm_order(cj_order_id: str) -> Dict:
+    """Confirm/pay a CJ order after creation."""
+    data = await _cj("PATCH", "shopping/order/confirmOrder", payload={"orderId": cj_order_id})
+    if data.get("result"):
+        logger.info(f"CJ order confirmed: {cj_order_id}")
+        return {"success": True}
+    return {"success": False, "error": data.get("message", "confirm error")}
 
 
 # ---------------------------------------------------------------------------
-# Payment / Balance
+# TRACKING
 # ---------------------------------------------------------------------------
-async def get_balance() -> dict:
-    """
-    Check CJ wallet balance.
-    
-    API: GET /shopping/pay/getBalance
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/shopping/pay/getBalance",
-            headers=headers,
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return {"balance": 0, "currency": "USD"}
-
-    balance_data = data.get("data", {})
-    return {
-        "balance": float(balance_data.get("amount", 0)),
-        "currency": balance_data.get("currency", "USD"),
-    }
+async def get_order_detail(cj_order_id: str) -> Optional[Dict]:
+    """Get CJ order details."""
+    data = await _cj("GET", "shopping/order/getOrderDetail", params={"orderId": cj_order_id})
+    if data.get("result") and data.get("data"):
+        return data["data"]
+    return None
 
 
-# ---------------------------------------------------------------------------
-# Tracking
-# ---------------------------------------------------------------------------
-async def get_tracking(tracking_number: str) -> list[dict]:
-    """
-    Get tracking events for a shipment.
-    
-    API: GET /logistic/getTrackInfo?trackNumber=xxx
-    """
-    headers = await _headers()
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.get(
-            f"{CJ_BASE_URL}/logistic/getTrackInfo",
-            headers=headers,
-            params={"trackNumber": tracking_number},
-        )
-        data = resp.json()
-
-    if not data.get("result"):
-        return []
-
-    return data.get("data", {}).get("trackInfo", [])
-
-
-# ---------------------------------------------------------------------------
-# Webhook Processing
-# ---------------------------------------------------------------------------
-def process_cj_webhook(payload: dict) -> dict:
-    """
-    Process incoming CJ webhook notifications.
-    
-    CJ sends webhooks for:
-    - Order status changes
-    - Tracking number assigned
-    - Delivery confirmation
-    
-    Setup: In CJ dashboard → Settings → Webhook → add your URL:
-    https://dropone.app/api/webhook/cj
-    """
-    event_type = payload.get("type", "")
-    data = payload.get("data", {})
-
-    if event_type == "ORDER_STATUS_CHANGE":
+async def get_tracking(cj_order_id: str) -> Optional[Dict]:
+    """Get tracking info."""
+    order = await get_order_detail(cj_order_id)
+    if order:
         return {
-            "event": "status_change",
-            "order_id": data.get("orderId", ""),
-            "order_number": data.get("orderNum", ""),
-            "old_status": data.get("oldStatus", ""),
-            "new_status": data.get("newStatus", ""),
+            "status": order.get("orderStatus", ""),
+            "tracking_number": order.get("trackNumber", ""),
+            "logistics": order.get("logisticName", ""),
         }
-
-    elif event_type == "TRACKING_NUMBER_UPDATE":
-        return {
-            "event": "tracking_update",
-            "order_id": data.get("orderId", ""),
-            "order_number": data.get("orderNum", ""),
-            "tracking_number": data.get("trackNumber", ""),
-            "logistics_name": data.get("logisticName", ""),
-        }
-
-    elif event_type == "ORDER_DELIVERED":
-        return {
-            "event": "delivered",
-            "order_id": data.get("orderId", ""),
-            "order_number": data.get("orderNum", ""),
-        }
-
-    return {"event": "unknown", "raw": payload}
+    return None
 
 
 # ---------------------------------------------------------------------------
-# Errors
+# SHIPPING ESTIMATE
 # ---------------------------------------------------------------------------
-class CJError(Exception):
-    """CJ API error."""
-    pass
+async def shipping_estimate(vid: str, country_code: str, qty: int = 1) -> List[Dict]:
+    """Get shipping options and costs."""
+    data = await _cj("POST", "logistic/freightCalculate", payload={
+        "startCountryCode": "",
+        "endCountryCode": country_code,
+        "products": [{"vid": vid, "quantity": qty}],
+    })
+    if data.get("result") and data.get("data"):
+        return data["data"]
+    return []
 
 
 # ---------------------------------------------------------------------------
-# Health check — verify CJ connection
+# HEALTH
 # ---------------------------------------------------------------------------
-async def check_connection() -> dict:
-    """Test CJ API connection and return account status."""
-    try:
-        token = await get_access_token()
-        balance = await get_balance()
-        return {
-            "connected": True,
-            "balance": balance["balance"],
-            "currency": balance["currency"],
-            "token_preview": token[:8] + "...",
-        }
-    except Exception as e:
-        return {
-            "connected": False,
-            "error": str(e),
-        }
+async def health() -> Dict:
+    token = await _get_access_token()
+    return {"connected": bool(token), "preview": (token[:8] + "...") if token else ""}

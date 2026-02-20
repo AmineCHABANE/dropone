@@ -28,6 +28,7 @@ from catalog import PRODUCTS, get_product, get_trending, search_products
 from store_generator import generate_store, generate_store_page, generate_success_page
 from content_ai import generate_content, calculate_ad_budget
 from multi_store import get_collections, get_collection, suggest_upsells, generate_collection_with_ai
+import cj_client
 from notifications import PushManager
 import cj_client
 
@@ -137,7 +138,7 @@ async def serve_app():
 async def health():
     return {
         "status": "ok",
-        "version": "2.2.0",
+        "version": "3.0.0",
         "services": {
             "ai": bool(ai_client),
             "stripe": bool(STRIPE_SECRET_KEY),
@@ -592,10 +593,12 @@ async def _process_completed_order(store, customer_email, customer_name,
                                     commission, seller_margin, payment_provider, payment_id):
     order_id = f"DO-{uuid.uuid4().hex[:8].upper()}"
     product = store.get("product_data", store.get("product", {}))
+    product_id = store.get("product_id", product.get("id", ""))
 
+    # Save order in database
     db.create_order({
         "order_id": order_id, "store_slug": store["slug"],
-        "product_id": store.get("product_id", product.get("id", "")),
+        "product_id": product_id,
         "product_name": product.get("name", "Produit"),
         "customer_email": customer_email, "customer_name": customer_name,
         "shipping_address": shipping_address, "amount_paid": amount_paid,
@@ -611,7 +614,7 @@ async def _process_completed_order(store, customer_email, customer_name,
     db.track_conversion(store["slug"], order_id, amount_paid)
 
     db.record_network_sale(
-        product_id=store.get("product_id", ""),
+        product_id=product_id,
         product_name=product.get("name", ""),
         category=product.get("category", ""),
         amount=amount_paid,
@@ -622,6 +625,58 @@ async def _process_completed_order(store, customer_email, customer_name,
     db.update_user_xp(store["owner_email"], xp)
     db.update_user_streak(store["owner_email"])
 
+    # -----------------------------------------------------------------------
+    # PLACE REAL CJ ORDER — ship the product to the customer
+    # -----------------------------------------------------------------------
+    try:
+        cj_vid = product.get("cj_vid", "")
+
+        # If no cached vid, search CJ for the product now
+        if not cj_vid and product_id:
+            cj_result = await cj_client.search_products(product.get("name", ""), page=1, page_size=1)
+            if cj_result:
+                cj_prod = cj_result[0]
+                pid = cj_prod.get("pid", "")
+                if pid:
+                    detail = await cj_client.get_product(pid)
+                    if detail and detail.get("variants"):
+                        cj_vid = detail["variants"][0].get("vid", "")
+                        logger.info(f"Found CJ vid={cj_vid} for {product_id}")
+
+        if cj_vid and shipping_address:
+            addr = shipping_address if isinstance(shipping_address, dict) else {}
+            cj_result = await cj_client.place_order(
+                vid=cj_vid,
+                quantity=1,
+                name=customer_name or "Customer",
+                phone=addr.get("phone", ""),
+                country_code=addr.get("country", "FR"),
+                province=addr.get("state", addr.get("province", "")),
+                city=addr.get("city", ""),
+                address=f"{addr.get('line1', '')} {addr.get('line2', '')}".strip(),
+                zip_code=addr.get("postal_code", ""),
+                our_order_id=order_id,
+            )
+
+            if cj_result.get("success"):
+                cj_order_id = cj_result["cj_order_id"]
+                logger.info(f"CJ order placed: {cj_order_id} for {order_id}")
+
+                # Confirm/pay the CJ order
+                await cj_client.confirm_order(cj_order_id)
+
+                # Update our order with CJ reference
+                db.update_order_supplier(order_id, cj_order_id)
+            else:
+                logger.error(f"CJ order FAILED for {order_id}: {cj_result.get('error')}")
+                # Order is paid but CJ failed — needs manual intervention
+                db.update_order_status(order_id, "cj_failed", cj_result.get("error", ""))
+        else:
+            logger.warning(f"No CJ vid or address for {order_id} — manual fulfillment needed")
+    except Exception as e:
+        logger.error(f"CJ order error for {order_id}: {e}")
+
+    # Push notification
     try:
         await push_mgr.notify_sale(
             seller_email=store["owner_email"],
@@ -1198,6 +1253,71 @@ async def seller_withdraw(request: Request):
 async def seller_payouts(email: str):
     """Get payout history for a seller."""
     return {"payouts": db.get_payouts(email)}
+
+
+# ---------------------------------------------------------------------------
+# CJ Dropshipping — Product Search & Health
+# ---------------------------------------------------------------------------
+@app.get("/api/cj/health")
+async def cj_health():
+    """Test CJ API connectivity."""
+    return await cj_client.health()
+
+
+@app.get("/api/cj/search")
+async def cj_search(q: str, page: int = 1):
+    """Search real CJ products."""
+    products = await cj_client.search_products(q, page=page, page_size=10)
+    return {
+        "query": q,
+        "count": len(products),
+        "products": [
+            {
+                "pid": p.get("pid", ""),
+                "name": p.get("productNameEn", ""),
+                "image": p.get("productImage", ""),
+                "price": p.get("sellPrice", 0),
+                "category": p.get("categoryName", ""),
+            }
+            for p in products
+        ],
+    }
+
+
+@app.get("/api/cj/product/{pid}")
+async def cj_product_detail(pid: str):
+    """Get CJ product detail with variants."""
+    detail = await cj_client.get_product(pid)
+    if not detail:
+        raise HTTPException(404, "Product not found on CJ")
+    variants = detail.get("variants", [])
+    return {
+        "pid": detail.get("pid", ""),
+        "name": detail.get("productNameEn", ""),
+        "description": detail.get("description", ""),
+        "image": detail.get("productImage", ""),
+        "images": [img.get("imageUrl", "") for img in detail.get("productImageSet", [])],
+        "sell_price": detail.get("sellPrice", 0),
+        "weight": detail.get("productWeight", 0),
+        "variants": [
+            {"vid": v.get("vid"), "name": v.get("variantNameEn", ""), "price": v.get("variantSellPrice", 0)}
+            for v in variants[:20]
+        ],
+    }
+
+
+@app.get("/api/cj/order/{order_id}/tracking")
+async def cj_order_tracking(order_id: str):
+    """Get tracking for a DropOne order via CJ."""
+    # Find the order in our DB
+    order = db.get_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    cj_oid = order.get("supplier_order_id", "")
+    if not cj_oid:
+        return {"status": order.get("status", "pending"), "tracking": None}
+    tracking = await cj_client.get_tracking(cj_oid)
+    return {"status": order.get("status", ""), "tracking": tracking}
 
 
 # ---------------------------------------------------------------------------
