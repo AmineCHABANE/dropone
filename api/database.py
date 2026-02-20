@@ -92,8 +92,12 @@ def update_user_earnings(email: str, amount: float):
     try:
         user = get_user(email)
         if user:
-            new = round(float(user.get("total_earnings") or 0) + amount, 2)
-            _patch("users", {"email": f"eq.{email}"}, {"total_earnings": new})
+            new_earnings = round(float(user.get("total_earnings") or 0) + amount, 2)
+            new_balance = round(float(user.get("balance") or 0) + amount, 2)
+            _patch("users", {"email": f"eq.{email}"}, {
+                "total_earnings": new_earnings,
+                "balance": new_balance,
+            })
     except Exception as e:
         logger.error(f"update_user_earnings: {e}")
 
@@ -553,3 +557,31 @@ def _level_name(level: int) -> str:
     if level <= 20: return "🔥 Expert"
     if level <= 35: return "💎 Master"
     return "👑 Légende"
+
+
+# ============================================================================
+# SELLER PAYMENTS
+# ============================================================================
+def update_seller_payment(email: str, updates: dict):
+    """Update seller payment info: stripe_account_id, paypal_email, payout_method, balance, etc."""
+    try:
+        _patch("users", {"email": f"eq.{email}"}, updates)
+    except Exception as e:
+        logger.error(f"update_seller_payment: {e}")
+
+
+def create_payout(data: dict) -> dict:
+    try:
+        res = _post("payouts", data)
+        return res[0] if res else data
+    except Exception as e:
+        logger.error(f"create_payout: {e}")
+        return data
+
+
+def get_payouts(email: str) -> list[dict]:
+    try:
+        return _get("payouts", {"email": f"eq.{email}", "select": "*", "order": "created_at.desc"})
+    except Exception as e:
+        logger.error(f"get_payouts: {e}")
+        return []

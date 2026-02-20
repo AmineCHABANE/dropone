@@ -1,5 +1,3 @@
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
 """
 DropOne — Production Backend API v2
 FastAPI + Supabase + OpenAI + Stripe + PayPal
@@ -351,9 +349,13 @@ async def create_checkout(req: CheckoutRequest):
         raise HTTPException(500, "Stripe not configured")
 
     try:
-        session = stripe.checkout.Session.create(
-            mode="payment",
-            line_items=[{
+        # Check if seller has Stripe Connect account
+        seller = db.get_user(store.get("owner_email", ""))
+        stripe_account_id = seller.get("stripe_account_id") if seller else None
+
+        session_params = {
+            "mode": "payment",
+            "line_items": [{
                 "price_data": {
                     "currency": "eur",
                     "product_data": {
@@ -365,16 +367,16 @@ async def create_checkout(req: CheckoutRequest):
                 },
                 "quantity": 1,
             }],
-            shipping_address_collection={
+            "shipping_address_collection": {
                 "allowed_countries": [
                     "FR","BE","CH","DE","ES","IT","NL","GB","US","CA",
                     "PT","AT","IE","LU","SE","DK","NO","FI","PL",
                 ],
             },
-            customer_email=req.customer_email or None,
-            success_url=f"{APP_URL}/s/{req.store_slug}/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{APP_URL}/s/{req.store_slug}",
-            metadata={
+            "customer_email": req.customer_email or None,
+            "success_url": f"{APP_URL}/s/{req.store_slug}/success?session_id={{CHECKOUT_SESSION_ID}}",
+            "cancel_url": f"{APP_URL}/s/{req.store_slug}",
+            "metadata": {
                 "store_slug": req.store_slug,
                 "store_id": store["store_id"],
                 "product_id": store.get("product_id", ""),
@@ -382,7 +384,19 @@ async def create_checkout(req: CheckoutRequest):
                 "commission": str(store["commission"]),
                 "seller_margin": str(store["margin"]),
             },
-        )
+        }
+
+        # If seller has Stripe Connect → direct payout via destination charge
+        if stripe_account_id:
+            commission_cents = int(float(store["commission"]) * 100)
+            supplier_cents = int(float(store["supplier_cost"]) * 100)
+            platform_fee = commission_cents + supplier_cents  # DropOne keeps commission + supplier cost
+            session_params["payment_intent_data"] = {
+                "application_fee_amount": platform_fee,
+                "transfer_data": {"destination": stripe_account_id},
+            }
+
+        session = stripe.checkout.Session.create(**session_params)
         return {"checkout_url": session.url, "session_id": session.id, "provider": "stripe"}
     except stripe.StripeError as e:
         raise HTTPException(400, str(e))
@@ -937,6 +951,251 @@ async def get_share_content(slug: str):
         },
         "copy_link": url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Seller Payment — Stripe Connect
+# ---------------------------------------------------------------------------
+@app.post("/api/seller/connect-stripe")
+async def seller_connect_stripe(request: Request):
+    """Create a Stripe Connect Express onboarding link for the seller."""
+    body = await request.json()
+    email = body.get("email", "")
+    if not email:
+        raise HTTPException(400, "Email required")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Check if already has a Stripe account
+    existing_id = user.get("stripe_account_id")
+    if existing_id:
+        # Create new login link for existing account
+        try:
+            link = stripe.AccountLink.create(
+                account=existing_id,
+                refresh_url=f"{APP_URL}/app?tab=profile&stripe=refresh",
+                return_url=f"{APP_URL}/app?tab=profile&stripe=success",
+                type="account_onboarding",
+            )
+            return {"onboarding_url": link.url, "account_id": existing_id}
+        except stripe.StripeError:
+            pass  # Account may be invalid, create new one
+
+    # Create new Express account
+    try:
+        account = stripe.Account.create(
+            type="express",
+            country="FR",
+            email=email,
+            capabilities={
+                "card_payments": {"requested": True},
+                "transfers": {"requested": True},
+            },
+            business_type="individual",
+            metadata={"dropone_email": email},
+        )
+        db.update_seller_payment(email, {"stripe_account_id": account.id, "payout_method": "stripe"})
+
+        link = stripe.AccountLink.create(
+            account=account.id,
+            refresh_url=f"{APP_URL}/app?tab=profile&stripe=refresh",
+            return_url=f"{APP_URL}/app?tab=profile&stripe=success",
+            type="account_onboarding",
+        )
+        return {"onboarding_url": link.url, "account_id": account.id}
+    except stripe.StripeError as e:
+        raise HTTPException(400, f"Stripe error: {e}")
+
+
+@app.get("/api/seller/stripe-status/{email}")
+async def seller_stripe_status(email: str):
+    """Check if seller's Stripe Connect account is ready."""
+    user = db.get_user(email)
+    if not user or not user.get("stripe_account_id"):
+        return {"connected": False, "charges_enabled": False, "payouts_enabled": False}
+    try:
+        acct = stripe.Account.retrieve(user["stripe_account_id"])
+        connected = acct.charges_enabled and acct.payouts_enabled
+        if connected and user.get("payout_method") != "stripe":
+            db.update_seller_payment(email, {"payout_method": "stripe"})
+        return {
+            "connected": connected,
+            "charges_enabled": acct.charges_enabled,
+            "payouts_enabled": acct.payouts_enabled,
+            "account_id": user["stripe_account_id"],
+        }
+    except stripe.StripeError:
+        return {"connected": False, "charges_enabled": False, "payouts_enabled": False}
+
+
+@app.get("/api/seller/stripe-dashboard/{email}")
+async def seller_stripe_dashboard(email: str):
+    """Get a Stripe Express Dashboard login link for the seller."""
+    user = db.get_user(email)
+    if not user or not user.get("stripe_account_id"):
+        raise HTTPException(404, "No Stripe account linked")
+    try:
+        link = stripe.Account.create_login_link(user["stripe_account_id"])
+        return {"dashboard_url": link.url}
+    except stripe.StripeError as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------------------------------------------------------------------------
+# Seller Payment — PayPal
+# ---------------------------------------------------------------------------
+@app.post("/api/seller/set-paypal")
+async def seller_set_paypal(request: Request):
+    """Set seller's PayPal email for payouts."""
+    body = await request.json()
+    email = body.get("email", "")
+    paypal_email = body.get("paypal_email", "")
+    if not email or not paypal_email:
+        raise HTTPException(400, "email and paypal_email required")
+    if not EMAIL_RE.match(paypal_email):
+        raise HTTPException(400, "Invalid PayPal email")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    db.update_seller_payment(email, {
+        "paypal_email": paypal_email.lower().strip(),
+        "payout_method": "paypal" if not user.get("stripe_account_id") else user.get("payout_method", "paypal"),
+    })
+    return {"paypal_email": paypal_email, "payout_method": "paypal"}
+
+
+# ---------------------------------------------------------------------------
+# Seller Balance & Withdrawals
+# ---------------------------------------------------------------------------
+@app.get("/api/seller/balance/{email}")
+async def seller_balance(email: str):
+    """Get seller's current balance, payment method, and payout history."""
+    user = db.get_user(email)
+    if not user:
+        return {"balance": 0, "total_earned": 0, "total_withdrawn": 0,
+                "payout_method": None, "paypal_email": None, "stripe_connected": False}
+
+    balance = round(float(user.get("balance") or user.get("total_earnings") or 0), 2)
+    total_earned = round(float(user.get("total_earnings") or 0), 2)
+    total_withdrawn = round(float(user.get("total_withdrawn") or 0), 2)
+
+    return {
+        "balance": balance,
+        "total_earned": total_earned,
+        "total_withdrawn": total_withdrawn,
+        "payout_method": user.get("payout_method"),
+        "paypal_email": user.get("paypal_email"),
+        "stripe_connected": bool(user.get("stripe_account_id")),
+        "min_withdrawal": 10.0,
+    }
+
+
+@app.post("/api/seller/withdraw")
+async def seller_withdraw(request: Request):
+    """Request a withdrawal. Minimum €10."""
+    body = await request.json()
+    email = body.get("email", "")
+    amount = float(body.get("amount", 0))
+
+    if not email:
+        raise HTTPException(400, "Email required")
+    if amount < 10:
+        raise HTTPException(400, "Minimum withdrawal: €10")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    balance = round(float(user.get("balance") or user.get("total_earnings") or 0), 2)
+    if amount > balance:
+        raise HTTPException(400, f"Insufficient balance (€{balance})")
+
+    method = user.get("payout_method")
+    if not method:
+        raise HTTPException(400, "Configure your payment method first (Stripe or PayPal)")
+
+    payout_id = f"PO-{uuid.uuid4().hex[:8].upper()}"
+    payout_status = "pending"
+    payout_error = ""
+
+    # --- Stripe Connect Transfer ---
+    if method == "stripe" and user.get("stripe_account_id"):
+        try:
+            transfer = stripe.Transfer.create(
+                amount=int(amount * 100),
+                currency="eur",
+                destination=user["stripe_account_id"],
+                description=f"DropOne payout {payout_id}",
+                metadata={"email": email, "payout_id": payout_id},
+            )
+            payout_status = "completed"
+            logger.info(f"Stripe transfer {transfer.id} → {email}: €{amount}")
+        except stripe.StripeError as e:
+            payout_status = "failed"
+            payout_error = str(e)
+            logger.error(f"Stripe payout failed: {e}")
+
+    # --- PayPal Payout ---
+    elif method == "paypal" and user.get("paypal_email"):
+        try:
+            import httpx as _hx
+            token = await _get_paypal_token()
+            async with _hx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{PAYPAL_BASE}/v1/payments/payouts",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={
+                        "sender_batch_header": {
+                            "sender_batch_id": payout_id,
+                            "email_subject": "Votre paiement DropOne",
+                            "email_message": f"Vous avez reçu €{amount:.2f} de vos ventes DropOne.",
+                        },
+                        "items": [{
+                            "recipient_type": "EMAIL",
+                            "amount": {"value": f"{amount:.2f}", "currency": "EUR"},
+                            "receiver": user["paypal_email"],
+                            "note": f"DropOne payout {payout_id}",
+                            "sender_item_id": payout_id,
+                        }],
+                    },
+                )
+                resp.raise_for_status()
+                payout_status = "completed"
+                logger.info(f"PayPal payout → {user['paypal_email']}: €{amount}")
+        except Exception as e:
+            payout_status = "failed"
+            payout_error = str(e)
+            logger.error(f"PayPal payout failed: {e}")
+    else:
+        raise HTTPException(400, "Payment method not properly configured")
+
+    # Record payout
+    db.create_payout({
+        "payout_id": payout_id, "email": email, "amount": amount,
+        "method": method, "status": payout_status, "error": payout_error,
+    })
+
+    # Update balance
+    if payout_status == "completed":
+        new_balance = round(balance - amount, 2)
+        new_withdrawn = round(float(user.get("total_withdrawn") or 0) + amount, 2)
+        db.update_seller_payment(email, {"balance": new_balance, "total_withdrawn": new_withdrawn})
+
+    if payout_status == "failed":
+        raise HTTPException(500, f"Payout failed: {payout_error}")
+
+    return {"payout_id": payout_id, "amount": amount, "method": method,
+            "status": payout_status, "new_balance": round(balance - amount, 2)}
+
+
+@app.get("/api/seller/payouts/{email}")
+async def seller_payouts(email: str):
+    """Get payout history for a seller."""
+    return {"payouts": db.get_payouts(email)}
 
 
 # ---------------------------------------------------------------------------
