@@ -1,5 +1,5 @@
-import sys, os
-sys.path.insert(0, os.path.dirname(__file__))
+import sys, os as _os
+sys.path.insert(0, _os.path.dirname(__file__))
 """
 DropOne — Production Backend API v2
 FastAPI + Supabase + OpenAI + Stripe + PayPal
