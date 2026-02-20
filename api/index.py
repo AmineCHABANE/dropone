@@ -31,7 +31,6 @@ from content_ai import generate_content, calculate_ad_budget
 from multi_store import get_collections, get_collection, suggest_upsells, generate_collection_with_ai
 import cj_client
 from notifications import PushManager
-import cj_client
 
 # ---------------------------------------------------------------------------
 # Config
@@ -80,6 +79,45 @@ def _check_rate_limit(key: str, max_req: int = 5, window: int = 60) -> bool:
         return False
     _rate_limits[key].append(now)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Auth helper — validates ownership on sensitive endpoints
+# ---------------------------------------------------------------------------
+def _require_owner(email: str, store: dict):
+    """Raise 403 if email is missing or doesn't match store owner."""
+    if not email:
+        raise HTTPException(401, "Authentication required")
+    if store.get("owner_email") != email.lower().strip():
+        raise HTTPException(403, "Not your store")
+
+
+def _require_user(email: str):
+    """Raise 401 if email is empty."""
+    if not email or not EMAIL_RE.match(email):
+        raise HTTPException(401, "Valid email required")
+    return email.lower().strip()
+
+
+# ---------------------------------------------------------------------------
+# Webhook idempotency — prevent double order processing
+# ---------------------------------------------------------------------------
+_processed_payments: dict[str, float] = {}
+
+def _is_duplicate_payment(payment_id: str) -> bool:
+    """Returns True if this payment was already processed (within 1h window)."""
+    if not payment_id:
+        return False
+    now = time.time()
+    # Cleanup old entries
+    for k in list(_processed_payments):
+        if now - _processed_payments[k] > 3600:
+            del _processed_payments[k]
+    if payment_id in _processed_payments:
+        logger.warning(f"Duplicate payment detected: {payment_id}")
+        return True
+    _processed_payments[payment_id] = now
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -219,6 +257,10 @@ async def create_store_endpoint(req: CreateStoreRequest):
     if not _check_rate_limit(f"create:{req.user_email}", max_req=5, window=60):
         raise HTTPException(429, "Trop de boutiques créées. Attends une minute.")
 
+    # Check active store limit
+    if db.count_active_stores(req.user_email) >= 10:
+        raise HTTPException(400, "Maximum 10 boutiques actives. Archivez-en une d'abord.")
+
     await catalog_mod.ensure_catalog()
     product = get_product(req.product_id)
     if not product:
@@ -287,12 +329,19 @@ async def get_store_orders(slug: str):
 
 
 @app.get("/api/user/{email}/stores")
-async def get_user_stores(email: str):
+async def get_user_stores(email: str, status: str = None):
     user = db.get_user(email)
     if not user:
-        return {"stores": [], "total_earnings": 0}
-    stores = db.get_user_stores(email)
-    return {"stores": stores, "total_earnings": round(float(user.get("total_earnings") or 0), 2)}
+        return {"stores": [], "archived": [], "total_earnings": 0, "active_count": 0, "max_stores": 10}
+    stores = db.get_user_stores(email, status="active")
+    archived = db.get_user_stores(email, status="archived")
+    return {
+        "stores": stores,
+        "archived": archived,
+        "total_earnings": round(float(user.get("total_earnings") or 0), 2),
+        "active_count": len(stores),
+        "max_stores": 10,
+    }
 
 
 # FIX #14: single endpoint for all user orders (frontend was doing N requests)
@@ -357,6 +406,9 @@ async def store_success(slug: str, request: Request):
 # ---------------------------------------------------------------------------
 @app.post("/api/checkout/create")
 async def create_checkout(req: CheckoutRequest):
+    if not _check_rate_limit(f"checkout:{req.store_slug}", max_req=10, window=60):
+        raise HTTPException(429, "Trop de tentatives. Réessayez dans une minute.")
+
     store = db.get_store(req.store_slug)
     if not store:
         raise HTTPException(404, "Store not found")
@@ -493,6 +545,11 @@ async def _create_paypal_order(store: dict, product: dict, req: CheckoutRequest)
 
 async def _capture_paypal(paypal_order_id: str, store: dict):
     """Capture PayPal payment and process order."""
+    # Idempotency — prevent double processing
+    if _is_duplicate_payment(f"pp-{paypal_order_id}"):
+        logger.info(f"PayPal {paypal_order_id} already processed, skipping")
+        return
+
     import httpx
     token = await _get_paypal_token()
     async with httpx.AsyncClient(timeout=15) as client:
@@ -590,6 +647,12 @@ async def stripe_webhook(request: Request):
 
     if event.get("type") == "checkout.session.completed":
         session = event["data"]["object"]
+        payment_id = session.get("id", "")
+
+        # Idempotency — prevent double processing
+        if _is_duplicate_payment(payment_id):
+            return {"received": True, "status": "already_processed"}
+
         meta = session.get("metadata", {})
         slug = meta.get("store_slug", "")
         store = db.get_store(slug)
@@ -991,13 +1054,12 @@ async def create_multi_store(request: Request):
 async def update_price(slug: str, request: Request):
     body = await request.json()
     new_price = float(body.get("new_price", 0))
-    email = body.get("email", "")
+    email = _require_user(body.get("email", ""))
 
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if email and store.get("owner_email") != email:
-        raise HTTPException(403, "Not your store")
+    _require_owner(email, store)
     if new_price < float(store["supplier_cost"]) * 1.1:
         raise HTTPException(400, "Price too low")
 
@@ -1011,17 +1073,58 @@ async def update_price(slug: str, request: Request):
 @app.put("/api/stores/{slug}/toggle")
 async def toggle_store(slug: str, request: Request):
     body = await request.json()
-    email = body.get("email", "")
+    email = _require_user(body.get("email", ""))
 
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if email and store.get("owner_email") != email:
-        raise HTTPException(403, "Not your store")
+    _require_owner(email, store)
 
     new_active = not store.get("active", True)
     db.update_store(slug, {"active": new_active})
     return {"active": new_active}
+
+
+@app.put("/api/stores/{slug}/archive")
+async def archive_store(slug: str, request: Request):
+    """Archive a store — hidden from dashboard, link still works."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    db.archive_store(slug)
+    return {"status": "archived", "slug": slug}
+
+
+@app.put("/api/stores/{slug}/unarchive")
+async def unarchive_store(slug: str, request: Request):
+    """Restore an archived store."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    # Check active store limit
+    if db.count_active_stores(email) >= 10:
+        raise HTTPException(400, "Maximum 10 boutiques actives. Archivez-en une d'abord.")
+    db.unarchive_store(slug)
+    return {"status": "active", "slug": slug}
+
+
+@app.delete("/api/stores/{slug}")
+async def delete_store(slug: str, request: Request):
+    """Soft delete a store."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    db.soft_delete_store(slug)
+    return {"status": "deleted", "slug": slug}
 
 
 # ---------------------------------------------------------------------------
@@ -1171,12 +1274,13 @@ async def seller_set_paypal(request: Request):
 @app.get("/api/seller/balance/{email}")
 async def seller_balance(email: str):
     """Get seller's current balance, payment method, and payout history."""
+    _require_user(email)
     user = db.get_user(email)
     if not user:
         return {"balance": 0, "total_earned": 0, "total_withdrawn": 0,
                 "payout_method": None, "paypal_email": None, "stripe_connected": False}
 
-    balance = round(float(user.get("balance") or user.get("total_earnings") or 0), 2)
+    balance = round(float(user.get("balance") or 0), 2)
     total_earned = round(float(user.get("total_earnings") or 0), 2)
     total_withdrawn = round(float(user.get("total_withdrawn") or 0), 2)
 
@@ -1195,11 +1299,11 @@ async def seller_balance(email: str):
 async def seller_withdraw(request: Request):
     """Request a withdrawal. Minimum €10."""
     body = await request.json()
-    email = body.get("email", "")
+    email = _require_user(body.get("email", ""))
     amount = float(body.get("amount", 0))
 
-    if not email:
-        raise HTTPException(400, "Email required")
+    if not _check_rate_limit(f"withdraw:{email}", max_req=3, window=300):
+        raise HTTPException(429, "Trop de retraits. Réessayez dans 5 minutes.")
     if amount < 10:
         raise HTTPException(400, "Minimum withdrawal: €10")
 
@@ -1207,7 +1311,10 @@ async def seller_withdraw(request: Request):
     if not user:
         raise HTTPException(404, "User not found")
 
-    balance = round(float(user.get("balance") or user.get("total_earnings") or 0), 2)
+    # Use balance field only — never fallback to total_earnings
+    balance = round(float(user.get("balance") or 0), 2)
+    if balance <= 0:
+        raise HTTPException(400, f"Solde à zéro")
     if amount > balance:
         raise HTTPException(400, f"Insufficient balance (€{balance})")
 

@@ -175,12 +175,47 @@ def slug_exists(slug: str) -> bool:
         return False
 
 
-def get_user_stores(email: str) -> list[dict]:
+def get_user_stores(email: str, status: str = None) -> list[dict]:
+    """Get user stores, optionally filtered by store_status."""
     try:
-        return _get("stores", {"owner_email": f"eq.{email}", "select": "*", "order": "created_at.desc"})
+        params = {"owner_email": f"eq.{email}", "select": "*", "order": "created_at.desc"}
+        if status:
+            params["store_status"] = f"eq.{status}"
+        else:
+            # By default exclude deleted
+            params["store_status"] = "neq.deleted"
+        return _get("stores", params)
     except Exception as e:
         logger.error(f"get_user_stores: {e}")
         return []
+
+
+def count_active_stores(email: str) -> int:
+    """Count active (non-archived, non-deleted) stores for a user."""
+    try:
+        rows = _get("stores", {
+            "owner_email": f"eq.{email}",
+            "store_status": "eq.active",
+            "select": "slug",
+        })
+        return len(rows)
+    except Exception:
+        return 0
+
+
+def archive_store(slug: str):
+    """Archive a store — still accessible via URL, hidden from dashboard."""
+    update_store(slug, {"store_status": "archived", "active": False})
+
+
+def unarchive_store(slug: str):
+    """Restore an archived store."""
+    update_store(slug, {"store_status": "active", "active": True})
+
+
+def soft_delete_store(slug: str):
+    """Soft delete — inaccessible but recoverable."""
+    update_store(slug, {"store_status": "deleted", "active": False})
 
 
 def update_store(slug: str, updates: dict):
