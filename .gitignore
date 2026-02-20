@@ -16,3 +16,4 @@ Thumbs.db
 *.log
 backend/__pycache__/
 deploy.sh
+.vercel

@@ -1,423 +1,167 @@
 """
-DropOne — Product Catalog
-Curated dropshipping products with supplier costs & suggested retail prices.
-In production, this connects to CJ Dropshipping / Zendrop / Spocket APIs.
+DropOne — Product Catalog v2
+150+ curated dropshipping products with real pricing across 12 categories.
 """
-
 from typing import Optional
 
-# ---------------------------------------------------------------------------
-# Product catalog — trending items with real-ish pricing
-# ---------------------------------------------------------------------------
 PRODUCTS = [
-    # --- Tech & Gadgets ---
-    {
-        "id": "tech-001",
-        "name": "LED Sunset Lamp",
-        "category": "tech",
-        "cost": 4.50,
-        "suggested_price": 24.99,
-        "margin_pct": 62,
-        "images": [
-            "https://images.unsplash.com/photo-1573790387438-4da905039392?w=600",
-        ],
-        "short_desc": "Viral TikTok sunset projector lamp — 16 colors, USB powered",
-        "tags": ["trending", "tiktok", "home"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 350,
-        "trending_score": 95,
-    },
-    {
-        "id": "tech-002",
-        "name": "Magnetic Phone Mount Pro",
-        "category": "tech",
-        "cost": 3.20,
-        "suggested_price": 19.99,
-        "margin_pct": 68,
-        "images": [
-            "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=600",
-        ],
-        "short_desc": "360° magnetic car phone holder — universal, one-hand use",
-        "tags": ["auto", "gadget", "everyday"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-12 days",
-        "weight_g": 120,
-        "trending_score": 88,
-    },
-    {
-        "id": "tech-003",
-        "name": "Mini Portable Projector",
-        "category": "tech",
-        "cost": 28.00,
-        "suggested_price": 89.99,
-        "margin_pct": 62,
-        "images": [
-            "https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=600",
-        ],
-        "short_desc": "HD mini projector — WiFi, 100-inch display, built-in speaker",
-        "tags": ["trending", "entertainment", "gift"],
-        "supplier": "zendrop",
-        "shipping_time": "8-15 days",
-        "weight_g": 680,
-        "trending_score": 91,
-    },
-    {
-        "id": "tech-004",
-        "name": "Wireless Earbuds Pro",
-        "category": "tech",
-        "cost": 6.80,
-        "suggested_price": 34.99,
-        "margin_pct": 72,
-        "images": [
-            "https://images.unsplash.com/photo-1590658268037-6bf12f032f55?w=600",
-        ],
-        "short_desc": "TWS Bluetooth 5.3 — ANC, 30h battery, touch control",
-        "tags": ["audio", "everyday", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-12 days",
-        "weight_g": 55,
-        "trending_score": 87,
-    },
+    # === TECH & GADGETS (20) ===
+    {"id":"tech-001","name":"LED Sunset Lamp","category":"tech","cost":4.50,"suggested_price":24.99,"margin_pct":62,"images":["https://images.unsplash.com/photo-1573790387438-4da905039392?w=600"],"short_desc":"Viral TikTok sunset projector — 16 colors, USB powered","tags":["trending","tiktok","home"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":97},
+    {"id":"tech-002","name":"Magnetic Phone Mount Pro","category":"tech","cost":3.20,"suggested_price":19.99,"margin_pct":68,"images":["https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=600"],"short_desc":"360° magnetic car phone holder — universal, one-hand","tags":["auto","gadget"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":120,"trending_score":88},
+    {"id":"tech-003","name":"Mini Portable Projector","category":"tech","cost":28.00,"suggested_price":89.99,"margin_pct":62,"images":["https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=600"],"short_desc":"HD mini projector — WiFi, 100-inch display, built-in speaker","tags":["trending","entertainment","gift"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":680,"trending_score":93},
+    {"id":"tech-004","name":"Wireless Earbuds Pro","category":"tech","cost":6.80,"suggested_price":34.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1590658268037-6bf12f032f55?w=600"],"short_desc":"TWS Bluetooth 5.3 — ANC, 30h battery, touch control","tags":["audio","everyday","gift"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":55,"trending_score":90},
+    {"id":"tech-005","name":"Smart LED Strip 10M","category":"tech","cost":5.50,"suggested_price":29.99,"margin_pct":65,"images":["https://images.unsplash.com/photo-1550535424-2afb65a2b8e5?w=600"],"short_desc":"RGB LED strip — app control, music sync, 10 meters","tags":["home","trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":92},
+    {"id":"tech-006","name":"Portable Bluetooth Speaker","category":"tech","cost":8.50,"suggested_price":39.99,"margin_pct":67,"images":["https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=600"],"short_desc":"Waterproof IPX7, 20h battery, bass boost, LED lights","tags":["audio","outdoor","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":450,"trending_score":86},
+    {"id":"tech-007","name":"Galaxy Star Projector","category":"tech","cost":9.00,"suggested_price":44.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=600"],"short_desc":"Nebula galaxy projector — laser stars, Bluetooth speaker, timer","tags":["trending","tiktok","home"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":95},
+    {"id":"tech-008","name":"Retro Pixel Art Display","category":"tech","cost":12.00,"suggested_price":49.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=600"],"short_desc":"LED pixel art frame — 256 colors, app controlled, custom designs","tags":["trending","tiktok","gift"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":400,"trending_score":88},
+    {"id":"tech-009","name":"Mini Drone Camera 4K","category":"tech","cost":22.00,"suggested_price":79.99,"margin_pct":68,"images":["https://images.unsplash.com/photo-1507582020474-9a35b7d455d9?w=600"],"short_desc":"4K camera drone — foldable, altitude hold, gesture control","tags":["trending","outdoor","tiktok"],"supplier":"cj_dropshipping","shipping_time":"10-18 days","weight_g":200,"trending_score":91},
+    {"id":"tech-010","name":"Smart Watch Fitness","category":"tech","cost":11.00,"suggested_price":49.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600"],"short_desc":"Heart rate, SpO2, sleep tracking — IP68, 7 day battery","tags":["fitness","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":45,"trending_score":89},
+    {"id":"tech-011","name":"Ring Light 10 inch","category":"tech","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=600"],"short_desc":"10\" ring light — tripod, phone holder, 3 color modes","tags":["tiktok","trending","creator"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":600,"trending_score":87},
+    {"id":"tech-012","name":"Mechanical Keyboard RGB","category":"tech","cost":14.00,"suggested_price":54.99,"margin_pct":68,"images":["https://images.unsplash.com/photo-1595225476474-87563907a212?w=600"],"short_desc":"65% mechanical — hot-swap, RGB, gasket mount","tags":["gaming","office","trending"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":700,"trending_score":85},
+    {"id":"tech-013","name":"Power Bank 20000mAh","category":"tech","cost":8.00,"suggested_price":34.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=600"],"short_desc":"20000mAh fast charge — USB-C PD, 3 ports, LED display","tags":["everyday","travel","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":84},
+    {"id":"tech-014","name":"Retro Game Console 400","category":"tech","cost":7.50,"suggested_price":34.99,"margin_pct":71,"images":["https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?w=600"],"short_desc":"400 classic games built-in — AV output, 2 players","tags":["gift","retro","entertainment"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":82},
+    {"id":"tech-015","name":"USB Condenser Microphone","category":"tech","cost":9.50,"suggested_price":44.99,"margin_pct":71,"images":["https://images.unsplash.com/photo-1590602847861-f357a9332bbc?w=600"],"short_desc":"Studio condenser mic — USB-C, cardioid, pop filter","tags":["creator","podcast","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":83},
+    {"id":"tech-016","name":"Wireless Charging Pad","category":"tech","cost":3.50,"suggested_price":19.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1591815302525-756a9bcc3425?w=600"],"short_desc":"15W fast Qi charger — slim, LED, universal","tags":["everyday","office","gift"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":80},
+    {"id":"tech-017","name":"Webcam HD 1080p","category":"tech","cost":7.20,"suggested_price":34.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1587826080692-f439cd0b70e0?w=600"],"short_desc":"Full HD webcam — autofocus, built-in mic, plug & play","tags":["office","remote"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":150,"trending_score":79},
+    {"id":"tech-018","name":"Smart Plug WiFi","category":"tech","cost":3.00,"suggested_price":14.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600"],"short_desc":"WiFi smart plug — Alexa/Google, timer, energy monitor","tags":["home","smart"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":76},
+    {"id":"tech-019","name":"MagSafe Wallet Leather","category":"tech","cost":3.00,"suggested_price":16.99,"margin_pct":75,"images":["https://images.unsplash.com/photo-1592899677977-9c10ca588bbd?w=600"],"short_desc":"MagSafe leather wallet — holds 3 cards, strong magnets","tags":["everyday","fashion"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":30,"trending_score":78},
+    {"id":"tech-020","name":"USB Desk Fan Portable","category":"tech","cost":3.80,"suggested_price":18.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600"],"short_desc":"3-speed quiet desk fan — USB-C, 360° rotation, foldable","tags":["office","summer"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":280,"trending_score":75},
 
-    # --- Home & Living ---
-    {
-        "id": "home-001",
-        "name": "Cloud LED Neon Sign",
-        "category": "home",
-        "cost": 5.80,
-        "suggested_price": 29.99,
-        "margin_pct": 71,
-        "images": [
-            "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600",
-        ],
-        "short_desc": "Aesthetic cloud neon light — USB powered, wall-mountable",
-        "tags": ["trending", "tiktok", "decor"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 280,
-        "trending_score": 93,
-    },
-    {
-        "id": "home-002",
-        "name": "Levitating Plant Pot",
-        "category": "home",
-        "cost": 15.00,
-        "suggested_price": 59.99,
-        "margin_pct": 67,
-        "images": [
-            "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=600",
-        ],
-        "short_desc": "Magnetic floating planter — rotates, LED base, real plant compatible",
-        "tags": ["trending", "gift", "luxury"],
-        "supplier": "zendrop",
-        "shipping_time": "10-18 days",
-        "weight_g": 950,
-        "trending_score": 86,
-    },
-    {
-        "id": "home-003",
-        "name": "Smart Aroma Diffuser",
-        "category": "home",
-        "cost": 8.50,
-        "suggested_price": 39.99,
-        "margin_pct": 71,
-        "images": [
-            "https://images.unsplash.com/photo-1602928321679-560bb453f190?w=600",
-        ],
-        "short_desc": "500ml ultrasonic diffuser — 7 LED colors, timer, whisper quiet",
-        "tags": ["wellness", "home", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 420,
-        "trending_score": 82,
-    },
-    {
-        "id": "home-004",
-        "name": "Galaxy Star Projector",
-        "category": "home",
-        "cost": 9.00,
-        "suggested_price": 44.99,
-        "margin_pct": 72,
-        "images": [
-            "https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=600",
-        ],
-        "short_desc": "Nebula projector — Bluetooth speaker, remote, 360° rotation",
-        "tags": ["trending", "tiktok", "bedroom"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 380,
-        "trending_score": 94,
-    },
+    # === BEAUTY & SKINCARE (15) ===
+    {"id":"beauty-001","name":"Ice Roller Face Massager","category":"beauty","cost":1.80,"suggested_price":14.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=600"],"short_desc":"Stainless steel ice roller — depuff, tighten pores","tags":["trending","tiktok","skincare"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":94},
+    {"id":"beauty-002","name":"LED Face Mask Therapy","category":"beauty","cost":12.00,"suggested_price":49.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=600"],"short_desc":"7 color LED therapy — anti-aging, acne, collagen boost","tags":["trending","tiktok","premium"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":300,"trending_score":92},
+    {"id":"beauty-003","name":"Jade Gua Sha Set","category":"beauty","cost":2.50,"suggested_price":19.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?w=600"],"short_desc":"Natural jade gua sha + roller — lymphatic drainage, gift box","tags":["trending","skincare","gift"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":90},
+    {"id":"beauty-004","name":"Automatic Hair Curler","category":"beauty","cost":11.00,"suggested_price":44.99,"margin_pct":68,"images":["https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600"],"short_desc":"Cordless auto curler — ceramic barrel, 6 temps, 30s curls","tags":["trending","hair","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":88},
+    {"id":"beauty-005","name":"Hair Growth Rosemary Oil","category":"beauty","cost":2.20,"suggested_price":17.99,"margin_pct":83,"images":["https://images.unsplash.com/photo-1526947425960-945c6e72858f?w=600"],"short_desc":"Rosemary & castor oil serum — hair growth, 60ml dropper","tags":["hair","trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":100,"trending_score":89},
+    {"id":"beauty-006","name":"Teeth Whitening Kit LED","category":"beauty","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1606811841689-23dfddce3e95?w=600"],"short_desc":"LED teeth whitening — 3 gels, 16-LED, 10 min sessions","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":150,"trending_score":86},
+    {"id":"beauty-007","name":"Derma Roller Kit 0.5mm","category":"beauty","cost":2.00,"suggested_price":16.99,"margin_pct":83,"images":["https://images.unsplash.com/photo-1619451334792-150fd785ee74?w=600"],"short_desc":"Micro-needling kit — 540 titanium needles, travel case","tags":["skincare","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":60,"trending_score":85},
+    {"id":"beauty-008","name":"Electric Face Cleanser","category":"beauty","cost":5.00,"suggested_price":29.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=600"],"short_desc":"Silicone sonic brush — 5 speeds, waterproof, USB-C","tags":["skincare","everyday"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":120,"trending_score":82},
+    {"id":"beauty-009","name":"Heated Eyelash Curler","category":"beauty","cost":3.00,"suggested_price":18.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1583241475880-083f84372725?w=600"],"short_desc":"Electric heated curler — 3 temps, 10s curl, USB rechargeable","tags":["trending","makeup"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":30,"trending_score":80},
+    {"id":"beauty-010","name":"Blackhead Vacuum Remover","category":"beauty","cost":4.00,"suggested_price":22.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1598440947619-2c35fc9aa908?w=600"],"short_desc":"Electric pore vacuum — 5 suction levels, 4 heads","tags":["skincare","trending"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":180,"trending_score":81},
+    {"id":"beauty-011","name":"Lip Gloss Plumper Set 6","category":"beauty","cost":2.80,"suggested_price":19.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1586495777744-4413f21062fa?w=600"],"short_desc":"6 shades lip plumper — glitter, moisturizing, long-lasting","tags":["makeup","gift","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":120,"trending_score":83},
+    {"id":"beauty-012","name":"Makeup Brush Set 15pc","category":"beauty","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600"],"short_desc":"Pro brush set — soft synthetic, rose gold, leather case","tags":["makeup","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":78},
+    {"id":"beauty-013","name":"Cloud Skin Moisturizer","category":"beauty","cost":3.00,"suggested_price":21.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1611930022073-b7a4ba5fcccd?w=600"],"short_desc":"Hyaluronic acid cream — glass skin, SPF30, 50ml","tags":["skincare","trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":80,"trending_score":86},
+    {"id":"beauty-014","name":"Nail Art Gel Kit UV","category":"beauty","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1604654894610-df63bc536371?w=600"],"short_desc":"UV gel nail kit — 12 colors, LED lamp, tools included","tags":["nails","gift","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":84},
+    {"id":"beauty-015","name":"Scalp Massager Brush","category":"beauty","cost":1.20,"suggested_price":9.99,"margin_pct":84,"images":["https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?w=600"],"short_desc":"Silicone scalp massager — exfoliates, promotes growth","tags":["hair","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":60,"trending_score":77},
 
-    # --- Fashion & Accessories ---
-    {
-        "id": "fashion-001",
-        "name": "Minimalist Watch",
-        "category": "fashion",
-        "cost": 7.50,
-        "suggested_price": 39.99,
-        "margin_pct": 73,
-        "images": [
-            "https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600",
-        ],
-        "short_desc": "Ultra-thin quartz watch — genuine leather band, water resistant",
-        "tags": ["fashion", "gift", "classic"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 45,
-        "trending_score": 79,
-    },
-    {
-        "id": "fashion-002",
-        "name": "Blue Light Glasses",
-        "category": "fashion",
-        "cost": 2.20,
-        "suggested_price": 19.99,
-        "margin_pct": 80,
-        "images": [
-            "https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=600",
-        ],
-        "short_desc": "Anti-fatigue computer glasses — UV400, lightweight, unisex",
-        "tags": ["trending", "health", "everyday"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-10 days",
-        "weight_g": 25,
-        "trending_score": 85,
-    },
-    {
-        "id": "fashion-003",
-        "name": "Crossbody Phone Bag",
-        "category": "fashion",
-        "cost": 4.00,
-        "suggested_price": 24.99,
-        "margin_pct": 76,
-        "images": [
-            "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600",
-        ],
-        "short_desc": "Minimalist leather phone sling — RFID blocking, 6 card slots",
-        "tags": ["trending", "fashion", "everyday"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-12 days",
-        "weight_g": 150,
-        "trending_score": 83,
-    },
+    # === HOME & DECOR (15) ===
+    {"id":"home-001","name":"Cloud LED Neon Sign","category":"home","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600"],"short_desc":"Neon cloud wall sign — warm white, USB, bedroom decor","tags":["trending","tiktok","decor"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":91},
+    {"id":"home-002","name":"Mushroom Table Lamp","category":"home","cost":5.00,"suggested_price":26.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=600"],"short_desc":"Retro mushroom lamp — warm LED, touch dimmer, cottagecore","tags":["trending","tiktok","decor"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":90},
+    {"id":"home-003","name":"3D Moon Lamp 16 Colors","category":"home","cost":5.50,"suggested_price":24.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1532236204992-f5e82c553390?w=600"],"short_desc":"3D printed moon lamp — 16 colors, touch + remote, rechargeable","tags":["trending","gift","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":88},
+    {"id":"home-004","name":"Aroma Diffuser Wood","category":"home","cost":5.00,"suggested_price":27.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1602928298849-325cec8771c0?w=600"],"short_desc":"Ultrasonic diffuser — 300ml, 7 LED colors, wood grain","tags":["wellness","home","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":83},
+    {"id":"home-005","name":"Shower Steamers Eucalyptus","category":"home","cost":2.00,"suggested_price":14.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1570194065650-d99fb4d0d9f8?w=600"],"short_desc":"Eucalyptus shower steamers — 12 pack, spa at home","tags":["wellness","gift","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":400,"trending_score":85},
+    {"id":"home-006","name":"Floating Shelf Set 3pc","category":"home","cost":7.50,"suggested_price":34.99,"margin_pct":71,"images":["https://images.unsplash.com/photo-1532372320572-cda25653a26d?w=600"],"short_desc":"Minimalist floating shelves — solid wood, invisible mount","tags":["decor","minimalist"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":1200,"trending_score":80},
+    {"id":"home-007","name":"Cozy Throw Blanket","category":"home","cost":8.00,"suggested_price":39.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=600"],"short_desc":"Chunky knit throw — 130x170cm, super soft, machine wash","tags":["cozy","home","gift"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":900,"trending_score":81},
+    {"id":"home-008","name":"Macramé Wall Hanging","category":"home","cost":4.00,"suggested_price":22.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=600"],"short_desc":"Handwoven macramé — boho style, 40x60cm, cotton","tags":["boho","decor"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":250,"trending_score":79},
+    {"id":"home-009","name":"LED Candles Set 3pc","category":"home","cost":4.00,"suggested_price":19.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1603905179672-e1aea5d08c99?w=600"],"short_desc":"Flameless LED candles — realistic flicker, remote, timer","tags":["decor","cozy","gift"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":400,"trending_score":76},
+    {"id":"home-010","name":"Minimalist Desk Clock","category":"home","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?w=600"],"short_desc":"LED mirror clock — alarm, temp, USB-C, sleek design","tags":["office","minimalist","gift"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":200,"trending_score":77},
+    {"id":"home-011","name":"Bamboo Laptop Stand","category":"home","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1611186871348-b1ce696e52c9?w=600"],"short_desc":"Adjustable bamboo riser — ventilated, fits 10-17 inch","tags":["office","everyday"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":78},
+    {"id":"home-012","name":"Minimalist Planter Set","category":"home","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600"],"short_desc":"Ceramic planters bamboo tray — set of 3, matte white","tags":["plants","minimalist"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":600,"trending_score":75},
+    {"id":"home-013","name":"Glass Vase Nordic","category":"home","cost":3.50,"suggested_price":17.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1490750967868-88aa4f44baee?w=600"],"short_desc":"Nordic glass bubble vase — hydroponics, 3 sizes","tags":["decor","minimalist"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":74},
+    {"id":"home-014","name":"Storage Basket Woven","category":"home","cost":3.00,"suggested_price":16.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=600"],"short_desc":"Seagrass woven basket — foldable, 3 sizes","tags":["organization","boho"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":73},
+    {"id":"home-015","name":"Adhesive Wall Hooks 10pc","category":"home","cost":1.50,"suggested_price":11.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=600"],"short_desc":"Transparent hooks — 5kg capacity, no drill, set of 10","tags":["organization","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":120,"trending_score":70},
 
-    # --- Beauty & Wellness ---
-    {
-        "id": "beauty-001",
-        "name": "Ice Roller Face Massager",
-        "category": "beauty",
-        "cost": 1.80,
-        "suggested_price": 14.99,
-        "margin_pct": 80,
-        "images": [
-            "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=600",
-        ],
-        "short_desc": "Stainless steel ice roller — depuffs, tightens, morning routine essential",
-        "tags": ["trending", "tiktok", "skincare"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-10 days",
-        "weight_g": 180,
-        "trending_score": 92,
-    },
-    {
-        "id": "beauty-002",
-        "name": "LED Face Mask Pro",
-        "category": "beauty",
-        "cost": 12.00,
-        "suggested_price": 49.99,
-        "margin_pct": 68,
-        "images": [
-            "https://images.unsplash.com/photo-1596755389378-c31d21fd1273?w=600",
-        ],
-        "short_desc": "7-color LED therapy — anti-aging, acne, rejuvenation",
-        "tags": ["trending", "skincare", "luxury"],
-        "supplier": "zendrop",
-        "shipping_time": "8-15 days",
-        "weight_g": 220,
-        "trending_score": 89,
-    },
-    {
-        "id": "beauty-003",
-        "name": "Scalp Massager Shampoo Brush",
-        "category": "beauty",
-        "cost": 1.20,
-        "suggested_price": 12.99,
-        "margin_pct": 83,
-        "images": [
-            "https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?w=600",
-        ],
-        "short_desc": "Silicone scalp brush — promotes growth, exfoliates, spa feeling",
-        "tags": ["tiktok", "haircare", "cheap"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-10 days",
-        "weight_g": 60,
-        "trending_score": 88,
-    },
+    # === FITNESS (13) ===
+    {"id":"fit-001","name":"Massage Gun Mini","category":"fitness","cost":12.00,"suggested_price":49.99,"margin_pct":70,"images":["https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600"],"short_desc":"Mini percussion massager — 6 heads, 30 speeds, USB-C","tags":["trending","recovery","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":91},
+    {"id":"fit-002","name":"Resistance Bands Set 5pc","category":"fitness","cost":3.50,"suggested_price":19.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=600"],"short_desc":"Latex resistance bands — 5 levels, handles + door anchor","tags":["fitness","home"],"supplier":"cj_dropshipping","shipping_time":"7-12 days","weight_g":400,"trending_score":86},
+    {"id":"fit-003","name":"Booty Band Set Fabric","category":"fitness","cost":2.50,"suggested_price":16.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600"],"short_desc":"Fabric hip bands — 3 levels, non-slip, glute activation","tags":["trending","tiktok","booty"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":87},
+    {"id":"fit-004","name":"Posture Corrector Back","category":"fitness","cost":3.50,"suggested_price":19.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600"],"short_desc":"Adjustable posture brace — breathable, invisible under clothes","tags":["wellness","trending"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":100,"trending_score":84},
+    {"id":"fit-005","name":"Yoga Mat TPE 6mm","category":"fitness","cost":5.50,"suggested_price":29.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1601925260368-ae2f83cf8b7f?w=600"],"short_desc":"Non-slip TPE yoga mat — alignment lines, eco-friendly","tags":["yoga","everyday"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":800,"trending_score":80},
+    {"id":"fit-006","name":"Jump Rope Smart Counter","category":"fitness","cost":4.00,"suggested_price":22.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1434596922112-19f563067271?w=600"],"short_desc":"Digital counting jump rope — calories, timer, weighted","tags":["cardio","trending"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":300,"trending_score":82},
+    {"id":"fit-007","name":"Water Bottle 1L Motivational","category":"fitness","cost":2.50,"suggested_price":16.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1523362628745-0c100150b504?w=600"],"short_desc":"Time-marked water bottle — BPA free, motivational quotes","tags":["everyday","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":180,"trending_score":83},
+    {"id":"fit-008","name":"Ab Roller Wheel Pro","category":"fitness","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600"],"short_desc":"Ab roller — knee pad, auto rebound, non-slip grip","tags":["core","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":81},
+    {"id":"fit-009","name":"Foam Roller 45cm","category":"fitness","cost":4.00,"suggested_price":21.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600"],"short_desc":"High-density foam roller — trigger point, massage grid","tags":["recovery","yoga"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":77},
+    {"id":"fit-010","name":"EMS Muscle Stimulator","category":"fitness","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600"],"short_desc":"EMS abs toner — 6 modes, USB rechargeable, gel pads","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":100,"trending_score":80},
+    {"id":"fit-011","name":"Grip Strength Trainer","category":"fitness","cost":2.00,"suggested_price":12.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600"],"short_desc":"Adjustable hand gripper — 10-60kg, counter display","tags":["strength","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":75},
+    {"id":"fit-012","name":"Ankle Weights 1kg Pair","category":"fitness","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=600"],"short_desc":"Adjustable ankle weights — 0.5-1kg each, neoprene","tags":["fitness","pilates"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":2000,"trending_score":78},
+    {"id":"fit-013","name":"Shaker Bottle Protein","category":"fitness","cost":2.00,"suggested_price":13.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1532384748853-8f54a8f476e2?w=600"],"short_desc":"Protein shaker 700ml — leak-proof, mixing ball","tags":["gym","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":72},
 
-    # --- Fitness ---
-    {
-        "id": "fit-001",
-        "name": "Massage Gun Mini",
-        "category": "fitness",
-        "cost": 11.00,
-        "suggested_price": 49.99,
-        "margin_pct": 70,
-        "images": [
-            "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600",
-        ],
-        "short_desc": "Portable percussion massager — 6 heads, 30 speeds, USB-C",
-        "tags": ["trending", "fitness", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 380,
-        "trending_score": 90,
-    },
-    {
-        "id": "fit-002",
-        "name": "Resistance Bands Set (5x)",
-        "category": "fitness",
-        "cost": 3.50,
-        "suggested_price": 22.99,
-        "margin_pct": 76,
-        "images": [
-            "https://images.unsplash.com/photo-1598289431512-b97b0917affc?w=600",
-        ],
-        "short_desc": "5 levels, latex-free, carry bag — gym & home workout",
-        "tags": ["fitness", "everyday", "cheap"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-10 days",
-        "weight_g": 200,
-        "trending_score": 75,
-    },
-    {
-        "id": "fit-003",
-        "name": "Smart Water Bottle",
-        "category": "fitness",
-        "cost": 6.00,
-        "suggested_price": 29.99,
-        "margin_pct": 72,
-        "images": [
-            "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600",
-        ],
-        "short_desc": "LED temperature display — reminds you to drink, 500ml insulated",
-        "tags": ["trending", "health", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-12 days",
-        "weight_g": 320,
-        "trending_score": 84,
-    },
+    # === FASHION ACCESSORIES (13) ===
+    {"id":"fashion-001","name":"Oversized Sunglasses Y2K","category":"fashion","cost":2.00,"suggested_price":16.99,"margin_pct":83,"images":["https://images.unsplash.com/photo-1511499767150-a48a237f0083?w=600"],"short_desc":"Retro Y2K shades — UV400, polarized, 5 colors","tags":["trending","tiktok","summer"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":40,"trending_score":90},
+    {"id":"fashion-002","name":"Claw Clip Set 6pc","category":"fashion","cost":1.50,"suggested_price":12.99,"margin_pct":84,"images":["https://images.unsplash.com/photo-1560343090-f0409e92791a?w=600"],"short_desc":"Acrylic claw clips — 6 trendy colors, matte, strong hold","tags":["trending","tiktok","hair"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":89},
+    {"id":"fashion-003","name":"Gold Layered Necklace Set","category":"fashion","cost":2.50,"suggested_price":18.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=600"],"short_desc":"3-layer gold necklace — stainless steel, tarnish-free","tags":["trending","jewelry","gift"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":30,"trending_score":87},
+    {"id":"fashion-004","name":"Butterfly Hair Clips 4pc","category":"fashion","cost":1.50,"suggested_price":11.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1560343090-f0409e92791a?w=600"],"short_desc":"Metal butterfly clips — gold, strong grip, Y2K style","tags":["trending","tiktok","hair"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":40,"trending_score":86},
+    {"id":"fashion-005","name":"Crossbody Bag Mini","category":"fashion","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=600"],"short_desc":"Mini crossbody — vegan leather, phone-sized, adjustable","tags":["everyday","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":85},
+    {"id":"fashion-006","name":"Belt Bag Fanny Pack","category":"fashion","cost":3.50,"suggested_price":19.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=600"],"short_desc":"Nylon belt bag — adjustable, water-resistant, phone pocket","tags":["trending","travel"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":120,"trending_score":84},
+    {"id":"fashion-007","name":"Satin Lined Beanie","category":"fashion","cost":3.00,"suggested_price":17.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1576871337622-98d48d1cf531?w=600"],"short_desc":"Satin-lined beanie — protects hair, warm knit, anti-frizz","tags":["trending","hair","winter"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":84},
+    {"id":"fashion-008","name":"Silk Scrunchie Set 6pc","category":"fashion","cost":2.00,"suggested_price":14.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600"],"short_desc":"Mulberry silk scrunchies — anti-breakage, 6 colors","tags":["hair","trending","gift"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":40,"trending_score":83},
+    {"id":"fashion-009","name":"Blue Light Glasses","category":"fashion","cost":2.00,"suggested_price":14.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1574258495973-f010dfbb5371?w=600"],"short_desc":"Anti blue light glasses — reduce eye strain, 3 styles","tags":["office","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":25,"trending_score":82},
+    {"id":"fashion-010","name":"Minimalist Watch Mesh","category":"fashion","cost":5.50,"suggested_price":29.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1524592094714-0f0654e20314?w=600"],"short_desc":"Ultra-thin mesh watch — Japanese quartz, waterproof, unisex","tags":["minimalist","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":60,"trending_score":82},
+    {"id":"fashion-011","name":"Stainless Steel Rings 5pc","category":"fashion","cost":2.50,"suggested_price":16.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1605100804763-247f67b3557e?w=600"],"short_desc":"Stackable ring set — gold/silver, tarnish-free","tags":["jewelry","trending"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":50,"trending_score":81},
+    {"id":"fashion-012","name":"Canvas Tote Bag Large","category":"fashion","cost":3.00,"suggested_price":17.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1544816155-12df9643f363?w=600"],"short_desc":"Large canvas tote — zip pocket, minimalist design","tags":["everyday","minimalist"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":250,"trending_score":77},
+    {"id":"fashion-013","name":"Travel Jewelry Box","category":"fashion","cost":3.50,"suggested_price":19.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1515562141589-7379e2e2603c?w=600"],"short_desc":"Compact jewelry organizer — PU leather, mirror, ring rolls","tags":["travel","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":78},
 
-    # --- Pet ---
-    {
-        "id": "pet-001",
-        "name": "Self-Cleaning Cat Brush",
-        "category": "pet",
-        "cost": 2.50,
-        "suggested_price": 16.99,
-        "margin_pct": 78,
-        "images": [
-            "https://images.unsplash.com/photo-1574158622682-e40e69881006?w=600",
-        ],
-        "short_desc": "One-click hair removal — gentle, ergonomic, all coat types",
-        "tags": ["trending", "tiktok", "pet"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "5-10 days",
-        "weight_g": 90,
-        "trending_score": 91,
-    },
-    {
-        "id": "pet-002",
-        "name": "Interactive Dog Ball",
-        "category": "pet",
-        "cost": 5.00,
-        "suggested_price": 24.99,
-        "margin_pct": 72,
-        "images": [
-            "https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600",
-        ],
-        "short_desc": "Auto-rolling smart ball — LED, rechargeable, keeps pets active",
-        "tags": ["trending", "pet", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-12 days",
-        "weight_g": 200,
-        "trending_score": 86,
-    },
+    # === KITCHEN (10) ===
+    {"id":"kitchen-001","name":"Portable Blender USB","category":"kitchen","cost":5.00,"suggested_price":27.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=600"],"short_desc":"Portable blender 380ml — USB-C, 6 blades, smoothies on the go","tags":["trending","tiktok","health"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":93},
+    {"id":"kitchen-002","name":"Electric Milk Frother","category":"kitchen","cost":3.00,"suggested_price":16.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600"],"short_desc":"Handheld milk frother — stainless, 3 speeds, latte art","tags":["coffee","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":100,"trending_score":85},
+    {"id":"kitchen-003","name":"Mini Waffle Maker","category":"kitchen","cost":7.00,"suggested_price":29.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1459789034005-ba29c5783491?w=600"],"short_desc":"Mini waffle maker — non-stick, 3 min waffles, compact","tags":["trending","breakfast","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":600,"trending_score":84},
+    {"id":"kitchen-004","name":"Vegetable Chopper 12in1","category":"kitchen","cost":5.50,"suggested_price":26.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600"],"short_desc":"12-in-1 veggie chopper — dicer, slicer, julienne","tags":["trending","meal-prep"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":700,"trending_score":83},
+    {"id":"kitchen-005","name":"Ice Sphere Mold Whiskey","category":"kitchen","cost":1.50,"suggested_price":11.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=600"],"short_desc":"Large sphere ice mold — 4 balls, silicone, cocktails","tags":["bar","trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":81},
+    {"id":"kitchen-006","name":"Cloud Egg Mold Set","category":"kitchen","cost":1.50,"suggested_price":9.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1482049016688-2d3e1b311543?w=600"],"short_desc":"Silicone egg molds — cloud, heart, star, set of 3","tags":["tiktok","fun","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":60,"trending_score":79},
+    {"id":"kitchen-007","name":"Glass Meal Prep 5pc","category":"kitchen","cost":8.00,"suggested_price":34.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600"],"short_desc":"Glass meal prep — 5 pack, airtight lids, microwave safe","tags":["meal-prep","health"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":1500,"trending_score":78},
+    {"id":"kitchen-008","name":"French Press Coffee 600ml","category":"kitchen","cost":4.50,"suggested_price":22.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=600"],"short_desc":"Borosilicate glass — 600ml, stainless filter, insulated","tags":["coffee","everyday"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":450,"trending_score":77},
+    {"id":"kitchen-009","name":"Beeswax Food Wraps 3pc","category":"kitchen","cost":2.50,"suggested_price":15.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1542838132-92c53300491e?w=600"],"short_desc":"Organic beeswax wraps — set of 3, replaces plastic","tags":["eco","sustainable"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":76},
+    {"id":"kitchen-010","name":"Insulated Lunch Bag","category":"kitchen","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1544025162-d76694265947?w=600"],"short_desc":"Insulated lunch bag — waterproof, 8L, 6h warm/cold","tags":["office","school"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":250,"trending_score":74},
 
-    # --- Kids ---
-    {
-        "id": "kids-001",
-        "name": "LCD Writing Tablet",
-        "category": "kids",
-        "cost": 3.80,
-        "suggested_price": 19.99,
-        "margin_pct": 73,
-        "images": [
-            "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=600",
-        ],
-        "short_desc": "12-inch digital drawing pad — colorful, one-button erase, no mess",
-        "tags": ["kids", "educational", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-12 days",
-        "weight_g": 180,
-        "trending_score": 83,
-    },
+    # === PET (10) ===
+    {"id":"pet-001","name":"Interactive Cat Ball","category":"pet","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1592194996308-7b43878e84a6?w=600"],"short_desc":"Smart rolling ball — auto-moving, LED, USB rechargeable","tags":["trending","cat","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":80,"trending_score":88},
+    {"id":"pet-002","name":"Self-Cleaning Brush","category":"pet","cost":3.00,"suggested_price":17.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600"],"short_desc":"One-click self-cleaning slicker — removes fur, gentle","tags":["trending","cat","dog"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":150,"trending_score":86},
+    {"id":"pet-003","name":"Cat Window Hammock","category":"pet","cost":4.50,"suggested_price":22.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1526336024174-e2822e304c36?w=600"],"short_desc":"Suction cup window perch — holds 15kg, sunny spot","tags":["cat","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":85},
+    {"id":"pet-004","name":"Pet Water Fountain 2L","category":"pet","cost":7.00,"suggested_price":29.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1548199973-03cce0bbc87b?w=600"],"short_desc":"Automatic fountain — triple filter, quiet pump, 2L","tags":["cat","dog","health"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":600,"trending_score":84},
+    {"id":"pet-005","name":"Pet Hair Remover Roller","category":"pet","cost":2.50,"suggested_price":14.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?w=600"],"short_desc":"Reusable lint roller — no adhesive, self-cleaning","tags":["trending","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":83},
+    {"id":"pet-006","name":"Dog Harness No-Pull","category":"pet","cost":4.00,"suggested_price":22.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600"],"short_desc":"No-pull harness — reflective, breathable mesh, all sizes","tags":["dog","walks"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":82},
+    {"id":"pet-007","name":"Slow Feeder Bowl","category":"pet","cost":2.50,"suggested_price":14.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1601758124510-52d02ddb7cbd?w=600"],"short_desc":"Puzzle slow feeder — prevents bloating, non-slip","tags":["dog","health"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":250,"trending_score":80},
+    {"id":"pet-008","name":"LED Dog Collar Light","category":"pet","cost":2.00,"suggested_price":13.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600"],"short_desc":"LED collar — 3 modes, USB rechargeable, night safety","tags":["dog","safety"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":40,"trending_score":79},
+    {"id":"pet-009","name":"Cat Tunnel 3-Way","category":"pet","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=600"],"short_desc":"Collapsible 3-way tunnel — crinkle sound, peek hole","tags":["cat","toy"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":81},
+    {"id":"pet-010","name":"Dog Paw Washer Cup","category":"pet","cost":2.50,"suggested_price":14.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600"],"short_desc":"Silicone paw cleaner — gentle bristles, S/M/L sizes","tags":["dog","walks"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":180,"trending_score":78},
 
-    # --- Car ---
-    {
-        "id": "car-001",
-        "name": "Car Vacuum Cleaner Mini",
-        "category": "auto",
-        "cost": 8.00,
-        "suggested_price": 34.99,
-        "margin_pct": 69,
-        "images": [
-            "https://images.unsplash.com/photo-1449965408869-ebd13bc9e5d8?w=600",
-        ],
-        "short_desc": "Cordless, 9000PA suction — USB-C, HEPA filter, wet & dry",
-        "tags": ["auto", "gadget", "practical"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 450,
-        "trending_score": 81,
-    },
+    # === OUTDOOR & TRAVEL (8) ===
+    {"id":"outdoor-001","name":"Packing Cubes Set 6pc","category":"outdoor","cost":4.00,"suggested_price":21.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1553531384-cc64ac80f931?w=600"],"short_desc":"Travel packing cubes — 6 sizes, mesh, compression zips","tags":["travel","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":83},
+    {"id":"outdoor-002","name":"Insulated Bottle 750ml","category":"outdoor","cost":4.50,"suggested_price":24.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=600"],"short_desc":"Vacuum insulated — 24h cold, 12h hot, leak-proof","tags":["everyday","fitness","travel"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":350,"trending_score":82},
+    {"id":"outdoor-003","name":"Portable Hammock","category":"outdoor","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=600"],"short_desc":"Ultralight parachute — holds 200kg, tree straps included","tags":["camping","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":81},
+    {"id":"outdoor-004","name":"Packable Rain Jacket","category":"outdoor","cost":8.00,"suggested_price":39.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1467043198406-dc953a3defa0?w=600"],"short_desc":"Ultralight rain jacket — packs into pocket, windproof","tags":["travel","outdoor"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":80},
+    {"id":"outdoor-005","name":"Solar Power Bank 20000","category":"outdoor","cost":9.00,"suggested_price":39.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1509391111050-456d3c79fb7a?w=600"],"short_desc":"Solar 20000mAh — waterproof, dual USB, LED flashlight","tags":["outdoor","camping"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":400,"trending_score":79},
+    {"id":"outdoor-006","name":"Camping Headlamp LED","category":"outdoor","cost":3.00,"suggested_price":16.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600"],"short_desc":"USB headlamp — 1000 lumens, 5 modes, waterproof","tags":["camping","outdoor"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":80,"trending_score":77},
+    {"id":"outdoor-007","name":"Quick-Dry Towel Micro","category":"outdoor","cost":3.00,"suggested_price":16.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=600"],"short_desc":"Compact microfiber towel — quick-dry, carry pouch","tags":["travel","gym"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":120,"trending_score":74},
+    {"id":"outdoor-008","name":"Multi-Tool Pocket Knife","category":"outdoor","cost":4.00,"suggested_price":21.99,"margin_pct":74,"images":["https://images.unsplash.com/photo-1567306226416-28f0efdc88ce?w=600"],"short_desc":"12-in-1 multi-tool — pliers, knife, saw, compact","tags":["camping","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":76},
 
-    # --- High-ticket ---
-    {
-        "id": "premium-001",
-        "name": "Smart Home Security Camera",
-        "category": "tech",
-        "cost": 18.00,
-        "suggested_price": 69.99,
-        "margin_pct": 66,
-        "images": [
-            "https://images.unsplash.com/photo-1558002038-1055907df827?w=600",
-        ],
-        "short_desc": "2K WiFi camera — night vision, motion alerts, 2-way audio, cloud/SD",
-        "tags": ["home", "security", "smart"],
-        "supplier": "zendrop",
-        "shipping_time": "8-15 days",
-        "weight_g": 250,
-        "trending_score": 80,
-    },
-    {
-        "id": "premium-002",
-        "name": "Electric Neck Massager",
-        "category": "wellness",
-        "cost": 14.00,
-        "suggested_price": 59.99,
-        "margin_pct": 69,
-        "images": [
-            "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600",
-        ],
-        "short_desc": "EMS pulse + heat therapy — 6 modes, portable, USB-C rechargeable",
-        "tags": ["trending", "wellness", "gift"],
-        "supplier": "cj_dropshipping",
-        "shipping_time": "7-14 days",
-        "weight_g": 200,
-        "trending_score": 87,
-    },
+    # === WELLNESS (8) ===
+    {"id":"wellness-001","name":"Acupressure Mat Set","category":"wellness","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600"],"short_desc":"Acupressure mat + pillow — 6000 points, pain relief","tags":["trending","recovery","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":800,"trending_score":86},
+    {"id":"wellness-002","name":"Electric Neck Massager","category":"wellness","cost":14.00,"suggested_price":59.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600"],"short_desc":"EMS pulse + heat — 6 modes, portable, USB-C","tags":["trending","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":89},
+    {"id":"wellness-003","name":"Silk Sleep Mask 3D","category":"wellness","cost":2.00,"suggested_price":14.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1531353826977-0941b4779a1c?w=600"],"short_desc":"Mulberry silk mask — 3D contoured, blocks all light","tags":["sleep","travel","gift"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":30,"trending_score":83},
+    {"id":"wellness-004","name":"Mouth Tape Sleep","category":"wellness","cost":1.00,"suggested_price":9.99,"margin_pct":87,"images":["https://images.unsplash.com/photo-1531353826977-0941b4779a1c?w=600"],"short_desc":"Sleep mouth tape — reduces snoring, better sleep","tags":["trending","tiktok","sleep"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":20,"trending_score":85},
+    {"id":"wellness-005","name":"Gratitude Journal 90 Days","category":"wellness","cost":2.50,"suggested_price":16.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1517842645767-c639042777db?w=600"],"short_desc":"Guided journal — 90 days, prompts, hardcover","tags":["mindfulness","trending","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":82},
+    {"id":"wellness-006","name":"Dry Body Brush","category":"wellness","cost":2.50,"suggested_price":15.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=600"],"short_desc":"Natural bristle — lymphatic drainage, long handle","tags":["skincare","detox","trending"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":80},
+    {"id":"wellness-007","name":"Essential Oil Set 6pc","category":"wellness","cost":4.00,"suggested_price":22.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=600"],"short_desc":"Pure essential oils — lavender, eucalyptus, 6x10ml","tags":["aromatherapy","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":200,"trending_score":79},
+    {"id":"wellness-008","name":"Copper Tongue Scraper 2pc","category":"wellness","cost":1.00,"suggested_price":8.99,"margin_pct":85,"images":["https://images.unsplash.com/photo-1606811841689-23dfddce3e95?w=600"],"short_desc":"Pure copper scraper — Ayurvedic, removes bacteria","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":30,"trending_score":81},
+
+    # === KIDS (8) ===
+    {"id":"kids-001","name":"Montessori Busy Board","category":"kids","cost":8.00,"suggested_price":34.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=600"],"short_desc":"Wooden busy board — 15 activities, fine motor skills","tags":["trending","montessori","gift"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":600,"trending_score":88},
+    {"id":"kids-002","name":"Magnetic Tiles 40pc","category":"kids","cost":9.00,"suggested_price":39.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600"],"short_desc":"Magnetic tiles set — 40 pieces, clear colors, STEM","tags":["education","gift","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":700,"trending_score":87},
+    {"id":"kids-003","name":"Kids Camera Digital","category":"kids","cost":6.00,"suggested_price":29.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600"],"short_desc":"Kids camera 1080p — 32GB card, silicone case, games","tags":["gift","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":80,"trending_score":86},
+    {"id":"kids-004","name":"LED Drawing Tablet","category":"kids","cost":4.00,"suggested_price":19.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?w=600"],"short_desc":"10-inch LCD writing tablet — colorful, one-click erase","tags":["trending","education","gift"],"supplier":"cj_dropshipping","shipping_time":"5-12 days","weight_g":150,"trending_score":85},
+    {"id":"kids-005","name":"Night Light Ocean Projector","category":"kids","cost":5.00,"suggested_price":24.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=600"],"short_desc":"Ocean wave projector — 8 colors, timer, soothing sounds","tags":["baby","sleep","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":84},
+    {"id":"kids-006","name":"Sensory Fidget Set 15pc","category":"kids","cost":2.00,"suggested_price":12.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600"],"short_desc":"Fidget pack — 15 pieces, pop it, mesh, stretchy","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":83},
+    {"id":"kids-007","name":"Rainbow Stacker Wooden","category":"kids","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600"],"short_desc":"12 arches rainbow stacker — natural paint, waldorf","tags":["montessori","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":82},
+    {"id":"kids-008","name":"Baby Silicone Plate Suction","category":"kids","cost":3.00,"suggested_price":16.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1515488042361-ee00e0ddd4e4?w=600"],"short_desc":"BPA-free plate — strong suction, divided, dishwasher safe","tags":["baby","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":79},
+
+    # === OFFICE (8) ===
+    {"id":"office-001","name":"Monitor Light Bar","category":"office","cost":8.00,"suggested_price":34.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600"],"short_desc":"LED monitor light — auto-dimming, no glare, USB powered","tags":["office","trending","remote"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":300,"trending_score":85},
+    {"id":"office-002","name":"Keyboard Cleaning Kit 7in1","category":"office","cost":2.00,"suggested_price":12.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600"],"short_desc":"7-in-1 kit — brush, cloth, spray, airpods/keyboard","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":100,"trending_score":86},
+    {"id":"office-003","name":"Transparent Sticky Notes","category":"office","cost":1.50,"suggested_price":9.99,"margin_pct":80,"images":["https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600"],"short_desc":"Transparent notes — waterproof, reusable, 400 sheets","tags":["trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":80,"trending_score":84},
+    {"id":"office-004","name":"Pomodoro Timer Cube","category":"office","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1563861826100-9cb868fdbe1c?w=600"],"short_desc":"Flip cube timer — 5/15/25/30 min, silent, no app","tags":["productivity","trending","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":100,"trending_score":82},
+    {"id":"office-005","name":"Desk Organizer Bamboo","category":"office","cost":5.00,"suggested_price":24.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=600"],"short_desc":"Bamboo organizer — 5 compartments, phone slot","tags":["office","minimalist","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":77},
+    {"id":"office-006","name":"Desk Mat Leather XL","category":"office","cost":4.50,"suggested_price":22.99,"margin_pct":72,"images":["https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600"],"short_desc":"PU leather mat 80x40cm — waterproof, dual-sided","tags":["office","minimalist"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":400,"trending_score":79},
+    {"id":"office-007","name":"Cable Management Kit 30pc","category":"office","cost":2.00,"suggested_price":13.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1593062096033-9a26b09da705?w=600"],"short_desc":"30-piece cable organizer — clips, sleeves, velcro","tags":["office","organization"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":150,"trending_score":73},
+    {"id":"office-008","name":"Ergonomic Mouse Pad Gel","category":"office","cost":2.50,"suggested_price":14.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=600"],"short_desc":"Memory foam wrist rest — ergonomic, non-slip","tags":["office","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":74},
+
+    # === AUTO (6) ===
+    {"id":"auto-001","name":"Car Vacuum Mini Cordless","category":"auto","cost":8.00,"suggested_price":34.99,"margin_pct":69,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"Cordless car vacuum — 9000Pa, wet & dry, HEPA","tags":["auto","trending"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":500,"trending_score":85},
+    {"id":"auto-002","name":"RGB Interior Light Strips","category":"auto","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"RGB car lights — app control, music sync, 4 strips","tags":["auto","trending","tiktok"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":150,"trending_score":84},
+    {"id":"auto-003","name":"Dash Cam 1080p WiFi","category":"auto","cost":15.00,"suggested_price":54.99,"margin_pct":66,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"WiFi dash cam — 1080p, night vision, G-sensor","tags":["auto","safety","trending"],"supplier":"cj_dropshipping","shipping_time":"8-15 days","weight_g":80,"trending_score":82},
+    {"id":"auto-004","name":"Smart Car Freshener","category":"auto","cost":3.50,"suggested_price":18.99,"margin_pct":76,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"Solar-powered diffuser — essential oil, rotating","tags":["auto","gift"],"supplier":"cj_dropshipping","shipping_time":"7-14 days","weight_g":150,"trending_score":79},
+    {"id":"auto-005","name":"Phone Holder Vent","category":"auto","cost":2.00,"suggested_price":12.99,"margin_pct":78,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"Air vent phone holder — gravity lock, one-hand","tags":["auto","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":60,"trending_score":77},
+    {"id":"auto-006","name":"Seat Gap Filler 2pc","category":"auto","cost":2.00,"suggested_price":13.99,"margin_pct":82,"images":["https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=600"],"short_desc":"PU leather gap filler — phone/coins catcher","tags":["auto","everyday"],"supplier":"cj_dropshipping","shipping_time":"5-10 days","weight_g":200,"trending_score":76},
 ]
 
 # ---------------------------------------------------------------------------
@@ -429,20 +173,15 @@ def get_product(product_id: str) -> Optional[dict]:
             return p
     return None
 
-
 def get_trending(limit: int = 20) -> list[dict]:
     return sorted(PRODUCTS, key=lambda p: p["trending_score"], reverse=True)[:limit]
 
-
 def search_products(query: str) -> list[dict]:
     q = query.lower()
-    results = []
-    for p in PRODUCTS:
-        searchable = f"{p['name']} {p['short_desc']} {p['category']} {' '.join(p['tags'])}".lower()
-        if q in searchable:
-            results.append(p)
-    return results
-
+    return [p for p in PRODUCTS if q in f"{p['name']} {p['short_desc']} {p['category']} {' '.join(p['tags'])}".lower()]
 
 def get_categories() -> list[str]:
-    return list(set(p["category"] for p in PRODUCTS))
+    return sorted(set(p["category"] for p in PRODUCTS))
+
+def get_products_by_category(category: str) -> list[dict]:
+    return [p for p in PRODUCTS if p["category"] == category]

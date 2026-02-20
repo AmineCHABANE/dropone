@@ -135,7 +135,7 @@ async def serve_app():
 async def health():
     return {
         "status": "ok",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "services": {
             "ai": bool(ai_client),
             "stripe": bool(STRIPE_SECRET_KEY),
@@ -144,6 +144,22 @@ async def health():
             "cj": bool(os.getenv("CJ_API_KEY")),
             "push": bool(os.getenv("VAPID_PUBLIC_KEY")),
         },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public Config (safe to expose)
+# ---------------------------------------------------------------------------
+@app.get("/api/config")
+async def get_config():
+    """Return public-safe config for the frontend."""
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL", ""),
+        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
+        "app_url": APP_URL,
+        "google_auth_enabled": bool(os.getenv("SUPABASE_ANON_KEY")),
+        "categories": sorted(set(p["category"] for p in PRODUCTS)),
+        "total_products": len(PRODUCTS),
     }
 
 
@@ -623,11 +639,16 @@ async def cj_webhook(request: Request):
     if tracking:
         # Try to find order and update tracking
         try:
-            dbc = db.get_db()
-            res = dbc.table("orders").select("order_id,store_slug") \
-                .eq("supplier_order_id", cj_order_id).execute()
-            if res.data:
-                order = res.data[0]
+            import httpx as _hx
+            rows = _hx.get(
+                f"{os.getenv('SUPABASE_URL','').rstrip('/')}/rest/v1/orders",
+                headers={"apikey": os.getenv("SUPABASE_SERVICE_KEY",""),
+                         "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_KEY','')}"},
+                params={"supplier_order_id": f"eq.{cj_order_id}", "select": "order_id,store_slug"},
+                timeout=10
+            ).json()
+            if rows:
+                order = rows[0]
                 db.update_order(order["order_id"], {
                     "tracking_number": tracking,
                     "carrier": carrier,
