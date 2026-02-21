@@ -372,3 +372,84 @@ def get_catalog_stats() -> dict:
         "avg_margin": round(sum(p["margin_pct"] for p in products) / len(products), 1) if products else 0,
         "source": "supabase_cache" if _cache["last_sync"] else "empty",
     }
+
+
+async def weekly_sync() -> dict:
+    """Full weekly sync: rotate queries + fetch + cleanup dead products."""
+    import time as _t
+    from datetime import datetime as _dt
+    start = _t.time()
+    old_count = len(_cache["products"])
+
+    await sync_catalog()
+    new_count = len(_cache["products"])
+
+    # Cleanup dead products (check up to 30)
+    cleanup_stats = {"checked": 0, "removed": 0, "alive": 0, "dead_names": []}
+    try:
+        cleanup_stats = await _cleanup_dead(max_checks=30)
+        if cleanup_stats["removed"] > 0:
+            _save_to_supabase(_cache["products"])
+    except Exception as e:
+        logger.warning(f"Cleanup error: {e}")
+
+    final_count = len(_cache["products"])
+    elapsed = round(_t.time() - start, 1)
+
+    return {
+        "success": True,
+        "elapsed_seconds": elapsed,
+        "products_before": old_count,
+        "products_fetched": new_count,
+        "products_after_cleanup": final_count,
+        "cleanup": cleanup_stats,
+        "categories": len(set(p["category"] for p in _cache["products"])) if _cache["products"] else 0,
+        "synced_at": _dt.utcnow().isoformat() + "Z",
+    }
+
+
+async def _cleanup_dead(max_checks: int = 30) -> dict:
+    """Remove products dead on CJ (404 / no variants)."""
+    import cj_client as cj_mod
+
+    products = _cache["products"]
+    if not products:
+        return {"checked": 0, "removed": 0, "alive": 0, "dead_names": []}
+
+    to_check = products[:max_checks]
+    dead_pids = set()
+    alive_count = 0
+
+    for i in range(0, len(to_check), 5):
+        batch = to_check[i:i+5]
+        tasks = []
+        for p in batch:
+            tasks.append(_check_alive(cj_mod, p["cj_pid"]))
+        try:
+            results = await asyncio.wait_for(
+                asyncio.gather(*tasks, return_exceptions=True),
+                timeout=15.0,
+            )
+            for p, result in zip(batch, results):
+                if isinstance(result, Exception) or not result:
+                    dead_pids.add(p["cj_pid"])
+                    logger.info(f"Dead: {p['name']} ({p['cj_pid']})")
+                else:
+                    alive_count += 1
+        except asyncio.TimeoutError:
+            break
+
+    dead_names = [p["name"] for p in to_check if p["cj_pid"] in dead_pids]
+    if dead_pids:
+        _cache["products"] = [p for p in products if p["cj_pid"] not in dead_pids]
+        logger.info(f"Cleaned {len(dead_pids)} dead products")
+
+    return {"checked": alive_count + len(dead_pids), "removed": len(dead_pids), "alive": alive_count, "dead_names": dead_names}
+
+
+async def _check_alive(cj_mod, cj_pid: str) -> bool:
+    try:
+        detail = await cj_mod.get_product(cj_pid)
+        return bool(detail and detail.get("variants"))
+    except Exception:
+        return False
