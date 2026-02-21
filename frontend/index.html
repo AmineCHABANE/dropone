@@ -1084,8 +1084,8 @@ function loginWithEmail() {
   localStorage.setItem('do_email', currentUser);
   localStorage.setItem('do_user_meta', JSON.stringify(currentUserMeta));
   // Register user in backend
-  fetch(`${API}/stores/create`, {method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({product_id:'tech-001',user_email:currentUser})}).catch(()=>{});
+  fetch(`${API}/auth/register`, {method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({email:currentUser})}).catch(()=>{});
   updateProfileUI();
   showApp();
 }
@@ -1311,39 +1311,71 @@ async function loadUserStores() {
 
   try {
     const res = await fetch(`${API}/user/${encodeURIComponent(currentUser)}/stores`);
-    const stores = await res.json();
-    if (!stores.length) {
+    const data = await res.json();
+    const stores = data.stores || [];
+    const archived = data.archived || [];
+
+    if (!stores.length && !archived.length) {
       el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏪</div><div class="empty-text">Aucune boutique. Créez votre première depuis le catalogue !</div></div>';
       return;
     }
-    el.innerHTML = stores.map(s => {
-      const p = s.product_data || {};
-      const active = s.active !== false;
-      return `
-        <div class="store-card">
-          <div class="store-header">
-            <div>
-              <div class="store-name">${s.store_name || p.name || 'Boutique'}</div>
-              <div class="store-meta">${p.name || ''} · €${parseFloat(s.seller_price||0).toFixed(2)}</div>
-            </div>
-            <span class="store-status ${active?'active':'inactive'}">${active?'Active':'Inactive'}</span>
-          </div>
-          <div class="store-stats">
-            <div><span class="store-stat-num">${s.total_sales||0}</span><span class="store-stat-label">ventes</span></div>
-            <div><span class="store-stat-num">€${parseFloat(s.total_revenue||0).toFixed(2)}</span><span class="store-stat-label">revenus</span></div>
-          </div>
-          <div class="store-actions">
-            <button class="btn-sm primary" onclick="window.open('/s/${s.slug}','_blank')">Voir</button>
-            <button class="btn-sm" onclick="openShareForSlug('${s.slug}')">Partager</button>
-            <button class="btn-sm" onclick="openAnalytics('${s.slug}')">Stats</button>
-            <button class="btn-sm" onclick="openContentForSlug('${s.slug}')">Contenu AI</button>
-            <button class="btn-sm" onclick="toggleStore('${s.slug}')">${active?'Désactiver':'Activer'}</button>
-          </div>
-        </div>`;
-    }).join('');
+
+    let html = '';
+
+    // Active stores counter
+    if (stores.length) {
+      html += `<div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px">${stores.length}/${data.max_stores||10} boutiques actives</div>`;
+      html += stores.map(s => renderStoreCard(s, false)).join('');
+    }
+
+    // Archived stores section
+    if (archived.length) {
+      html += `<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+          📦 Historique (${archived.length} archivée${archived.length>1?'s':''}) ▾
+        </div>
+        <div style="display:none">
+          ${archived.map(s => renderStoreCard(s, true)).join('')}
+        </div>
+      </div>`;
+    }
+
+    el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
   }
+}
+
+function renderStoreCard(s, isArchived) {
+  const p = s.product_data || {};
+  const active = s.active !== false && !isArchived;
+  return `
+    <div class="store-card" style="${isArchived?'opacity:0.7':''}">
+      <div class="store-header">
+        <div>
+          <div class="store-name">${s.store_name || p.name || 'Boutique'}</div>
+          <div class="store-meta">${p.name || ''} · €${parseFloat(s.seller_price||0).toFixed(2)}</div>
+        </div>
+        <span class="store-status ${isArchived?'inactive':active?'active':'inactive'}">${isArchived?'Archivée':active?'Active':'Inactive'}</span>
+      </div>
+      <div class="store-stats">
+        <div><span class="store-stat-num">${s.total_sales||0}</span><span class="store-stat-label">ventes</span></div>
+        <div><span class="store-stat-num">€${parseFloat(s.total_revenue||0).toFixed(2)}</span><span class="store-stat-label">revenus</span></div>
+      </div>
+      <div class="store-actions">
+        <button class="btn-sm primary" onclick="window.open('/s/${s.slug}','_blank')">Voir</button>
+        ${isArchived ? `
+          <button class="btn-sm" onclick="unarchiveStore('${s.slug}')">Restaurer</button>
+          <button class="btn-sm" style="color:var(--red)" onclick="deleteStore('${s.slug}')">Supprimer</button>
+        ` : `
+          <button class="btn-sm" onclick="openShareForSlug('${s.slug}')">Partager</button>
+          <button class="btn-sm" onclick="openAnalytics('${s.slug}')">Stats</button>
+          <button class="btn-sm" onclick="openContentForSlug('${s.slug}')">Contenu AI</button>
+          <button class="btn-sm" onclick="toggleStore('${s.slug}')">${active?'Désactiver':'Activer'}</button>
+          <button class="btn-sm" onclick="archiveStore('${s.slug}')">Archiver</button>
+        `}
+      </div>
+    </div>`;
 }
 
 async function toggleStore(slug) {
@@ -1355,6 +1387,47 @@ async function toggleStore(slug) {
     });
     loadUserStores();
   } catch(e) {}
+}
+
+async function archiveStore(slug) {
+  if (!confirm('Archiver cette boutique ? Elle restera accessible via son lien.')) return;
+  try {
+    await fetch(`${API}/stores/${slug}/archive`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email: currentUser}),
+    });
+    loadUserStores();
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+async function unarchiveStore(slug) {
+  try {
+    const res = await fetch(`${API}/stores/${slug}/unarchive`, {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email: currentUser}),
+    });
+    if (!res.ok) {
+      const d = await res.json();
+      alert(d.detail || 'Erreur');
+      return;
+    }
+    loadUserStores();
+  } catch(e) { alert('Erreur: ' + e.message); }
+}
+
+async function deleteStore(slug) {
+  if (!confirm('⚠️ Supprimer définitivement cette boutique ?')) return;
+  if (!confirm('Cette action est irréversible. Confirmer ?')) return;
+  try {
+    await fetch(`${API}/stores/${slug}`, {
+      method: 'DELETE',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email: currentUser}),
+    });
+    loadUserStores();
+  } catch(e) { alert('Erreur: ' + e.message); }
 }
 
 // ---------------------------------------------------------------------------
@@ -1370,14 +1443,26 @@ async function loadOrders() {
 
   try {
     const res = await fetch(`${API}/user/${encodeURIComponent(currentUser)}/orders`);
-    const orders = await res.json();
+    const data = await res.json();
+    const orders = data.orders || [];
+    const stats = data.stats || {};
     if (!orders.length) {
       el.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Aucune commande pour le moment</div></div>';
       return;
     }
-    el.innerHTML = orders.map(o => {
-      const statusClass = o.status === 'shipped' ? 'shipped' : o.status === 'delivered' ? 'delivered' : 'pending';
-      const statusLabel = {pending:'En attente', shipped:'Expédié', delivered:'Livré', paid:'Payé'}[o.status] || o.status;
+
+    const statusLabels = {
+      pending:'⏳ En attente', processing:'📦 En cours', shipped:'🚚 Expédié',
+      delivered:'✅ Livré', paid:'💳 Payé', cj_failed:'⚠️ Erreur fournisseur'
+    };
+
+    let html = `<div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px">
+      ${stats.total_orders||0} commandes · €${(stats.total_margin||0).toFixed(2)} de marge
+    </div>`;
+
+    html += orders.map(o => {
+      const statusClass = o.status === 'shipped' ? 'shipped' : o.status === 'delivered' ? 'delivered' : o.status === 'cj_failed' ? 'failed' : 'pending';
+      const statusLabel = statusLabels[o.status] || o.status;
       const date = o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR') : '';
       return `
         <div class="order-card">
@@ -1388,11 +1473,14 @@ async function loadOrders() {
           <div class="order-details">
             ${o.product_name || 'Produit'} · ${date}
             ${o.customer_name ? ` · ${o.customer_name}` : ''}
-            ${o.tracking_number ? `<br>Tracking: ${o.tracking_number}` : ''}
+            ${o.tracking_number ? `<br>🔗 Tracking: <a href="https://t.17track.net/en#nums=${o.tracking_number}" target="_blank" style="color:var(--accent)">${o.tracking_number}</a>` : ''}
+            ${o.status === 'cj_failed' ? `<br><span style="color:var(--red);font-size:0.75rem">${o.error || 'Erreur — contactez le support'}</span>` : ''}
           </div>
           <div class="order-amount">+€${parseFloat(o.seller_margin||0).toFixed(2)}</div>
         </div>`;
     }).join('');
+
+    el.innerHTML = html;
   } catch(e) {
     el.innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
   }
