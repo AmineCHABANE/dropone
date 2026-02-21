@@ -23,50 +23,34 @@ CACHE_TTL = 6 * 3600  # 6 hours
 MARGIN_MULTIPLIER = 2.5  # 60% margin
 MIN_MARGIN_MULTIPLIER = 2.0
 MAX_PRICE = 99.99
-PRODUCTS_PER_QUERY = 8
-CONCURRENT_BATCH = 12  # Max parallel CJ requests (24 queries in 2 batches)
+PRODUCTS_PER_QUERY = 20
+CONCURRENT_BATCH = 24  # All queries at once
 
-# Curated queries — 3 per category = 24 total (fits in Vercel 10s timeout)
+# 1 broad query per category = 8 total (fits easily in Vercel 10s)
 CATEGORY_QUERIES = {
     "tech": [
-        "wireless earbuds bluetooth",
-        "portable bluetooth speaker",
-        "LED strip lights RGB",
+        "wireless earbuds bluetooth speaker",
     ],
     "beauty": [
-        "ice roller face massager",
-        "LED face mask therapy",
-        "jade gua sha roller",
+        "face massager roller skincare",
     ],
     "home": [
-        "star projector galaxy",
-        "moon lamp 3D",
-        "aroma diffuser ultrasonic",
+        "LED projector lamp diffuser",
     ],
     "fitness": [
-        "massage gun mini portable",
-        "resistance bands set",
-        "yoga mat thick",
+        "massage gun resistance bands",
     ],
     "kitchen": [
-        "electric milk frother",
-        "portable blender USB",
-        "knife sharpener kitchen",
+        "portable blender frother kitchen",
     ],
     "pet": [
-        "cat brush self cleaning",
-        "pet hair remover roller",
-        "dog water bottle portable",
+        "pet brush hair remover dog",
     ],
     "fashion": [
-        "sunglasses polarized",
-        "crossbody bag small",
-        "belt bag fanny pack",
+        "sunglasses bag crossbody",
     ],
     "auto": [
-        "car vacuum mini cordless",
-        "dash cam 1080p",
-        "car interior LED strip",
+        "car vacuum dash cam LED",
     ],
 }
 
