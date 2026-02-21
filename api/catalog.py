@@ -23,8 +23,8 @@ CACHE_TTL = 6 * 3600  # 6 hours
 MARGIN_MULTIPLIER = 2.5  # 60% margin
 MIN_MARGIN_MULTIPLIER = 2.0
 MAX_PRICE = 99.99
-PRODUCTS_PER_QUERY = 5
-CONCURRENT_BATCH = 6  # Max parallel CJ requests
+PRODUCTS_PER_QUERY = 8
+CONCURRENT_BATCH = 12  # Max parallel CJ requests (24 queries in 2 batches)
 
 # Curated queries — 3 per category = 24 total (fits in Vercel 10s timeout)
 CATEGORY_QUERIES = {
@@ -265,11 +265,20 @@ async def sync_catalog():
         all_products = []
         seen_pids = set()
 
-        # Execute in concurrent batches
+        # Execute in concurrent batches with timeout protection
+        import asyncio
         for i in range(0, len(tasks), CONCURRENT_BATCH):
             batch = tasks[i:i + CONCURRENT_BATCH]
             coros = [_fetch_query(cj_client, q, cat) for q, cat in batch]
-            results = await asyncio.gather(*coros, return_exceptions=True)
+            try:
+                # 8s timeout per batch — leaves room for Vercel's 10s limit
+                results = await asyncio.wait_for(
+                    asyncio.gather(*coros, return_exceptions=True),
+                    timeout=8.0,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Batch {i//CONCURRENT_BATCH + 1} timed out, using partial results")
+                break
 
             for result in results:
                 if isinstance(result, Exception):
