@@ -1,1795 +1,632 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>DropOne — Plateforme Dropshipping Professionnelle</title>
-<meta name="description" content="Créez votre boutique e-commerce en dropshipping. Produits tendance, paiements sécurisés, livraison mondiale.">
-<meta name="theme-color" content="#0c0f1a">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="/manifest.json">
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MathForge — From Math to Code, Instantly</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%236366f1'/><text x='16' y='23' font-size='18' text-anchor='middle' fill='white' font-family='serif'>∫</text></svg>">
 <style>
-:root {
-  --bg: #0c0f1a;
-  --bg2: #131829;
-  --card: #181d30;
-  --card-hover: #1e2440;
-  --border: #252d48;
-  --border-light: #2a3355;
-  --accent: #6366f1;
-  --accent-hover: #818cf8;
-  --accent-bg: rgba(99,102,241,0.1);
-  --accent-border: rgba(99,102,241,0.25);
-  --green: #10b981;
-  --green-bg: rgba(16,185,129,0.1);
-  --green-border: rgba(16,185,129,0.25);
-  --red: #ef4444;
-  --red-bg: rgba(239,68,68,0.1);
-  --orange: #f59e0b;
-  --orange-bg: rgba(245,158,11,0.1);
-  --blue: #3b82f6;
-  --text: #e8eaf0;
-  --text2: #8b92ab;
-  --text3: #565e7a;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --shadow: 0 1px 3px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.2);
-  --shadow-lg: 0 4px 20px rgba(0,0,0,0.4);
-}
+  :root {
+    --bg-deep: #0a0a0f;
+    --bg-card: #12121a;
+    --bg-hover: #1a1a28;
+    --accent: #6366f1;
+    --accent-glow: #818cf8;
+    --accent-dim: #4f46e5;
+    --green: #10b981;
+    --green-glow: #34d399;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --text-muted: #64748b;
+    --border: #1e293b;
+    --radius: 12px;
+  }
 
-* { margin:0; padding:0; box-sizing:border-box; }
-html, body { height:100%; overflow:hidden; }
-body {
-  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg); color: var(--text);
-  -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent;
-  font-size: 15px;
-  line-height: 1.5;
-}
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* ===== SCROLLBAR ===== */
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  body {
+    background: var(--bg-deep);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    overflow-x: hidden;
+    line-height: 1.6;
+  }
 
-/* ===== APP SHELL ===== */
-.app { height:100%; display:flex; flex-direction:column; display:none; }
-.app-content {
-  flex:1; overflow-y:auto; overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
-  padding-bottom: calc(70px + var(--safe-bottom));
-}
-.screen { display:none; }
-.screen.active { display:block; }
+  /* --- GRID BACKGROUND --- */
+  .grid-bg {
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(99,102,241,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none; z-index: 0;
+  }
+  .glow-orb { position: fixed; width: 600px; height: 600px; border-radius: 50%; filter: blur(120px); opacity: 0.15; pointer-events: none; z-index: 0; }
+  .glow-orb.purple { background: var(--accent); top: -200px; right: -100px; }
+  .glow-orb.green { background: var(--green); bottom: -200px; left: -100px; opacity: 0.08; }
 
-/* ===== TOP BAR ===== */
-.topbar {
-  display:flex; align-items:center; justify-content:space-between;
-  padding: 12px 16px;
-  background: rgba(12,15,26,0.85);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 100;
-}
-.topbar-brand {
-  display:flex; align-items:center; gap:8px;
-}
-.topbar-logo {
-  font-size: 1.15rem; font-weight: 700;
-  background: linear-gradient(135deg, #6366f1, #a78bfa);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  letter-spacing: -0.5px;
-}
-.topbar-badge {
-  font-size: 0.6rem; font-weight: 600;
-  padding: 2px 6px; border-radius: 4px;
-  background: var(--accent-bg); color: var(--accent);
-  border: 1px solid var(--accent-border);
-}
-.topbar-user {
-  display:flex; align-items:center; gap:10px;
-}
-.topbar-avatar {
-  width: 32px; height: 32px; border-radius: 50%;
-  background: var(--card); border: 2px solid var(--border);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; overflow: hidden;
-  transition: border-color 0.2s;
-}
-.topbar-avatar:hover { border-color: var(--accent); }
-.topbar-avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+  /* --- NAV --- */
+  nav {
+    position: fixed; top: 0; width: 100%; z-index: 100;
+    padding: 20px 40px;
+    display: flex; justify-content: space-between; align-items: center;
+    backdrop-filter: blur(20px);
+    background: rgba(10,10,15,0.8);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo {
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 1.3rem;
+    letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px;
+  }
+  .logo .icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--green));
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 700;
+  }
+  .nav-links { display: flex; gap: 32px; align-items: center; }
+  .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+  .nav-links a:hover { color: var(--text); }
 
-/* ===== TAB BAR ===== */
-.tabbar {
-  display:flex;
-  background: rgba(12,15,26,0.92);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border);
-  padding: 6px 4px calc(6px + var(--safe-bottom));
-  position: fixed; bottom: 0; left: 0; right: 0;
-  z-index: 100;
-}
-.tab {
-  flex:1; display:flex; flex-direction:column; align-items:center;
-  gap: 2px; padding: 6px 2px;
-  background:none; border:none; color:var(--text3);
-  font-family:inherit; font-size:0.65rem; font-weight:500;
-  cursor:pointer; transition: color 0.2s;
-  position: relative;
-}
-.tab.active { color: var(--accent); }
-.tab-icon { font-size: 1.15rem; line-height: 1; }
-.tab-dot {
-  position:absolute; top:4px; right:calc(50% - 16px);
-  width:6px; height:6px; border-radius:50%;
-  background:var(--red); display:none;
-}
+  .btn { padding: 10px 24px; border-radius: 8px; border: none; font-family: 'DM Sans'; font-weight: 600; font-size: 0.9rem; cursor: pointer; transition: all 0.3s; text-decoration: none; }
+  .btn-primary { background: var(--accent); color: white; box-shadow: 0 0 20px rgba(99,102,241,0.3); }
+  .btn-primary:hover { background: var(--accent-glow); box-shadow: 0 0 30px rgba(99,102,241,0.5); transform: translateY(-1px); }
+  .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--accent); }
 
-/* ===== LOGIN ===== */
-.login-screen {
-  height:100%; display:flex; flex-direction:column;
-  align-items:center; justify-content:center;
-  padding: 32px 24px;
-  background: var(--bg);
-  position: relative; overflow: hidden;
-}
-.login-screen::before {
-  content:''; position:absolute; top:-30%; left:-20%;
-  width:140%; height:60%;
-  background: radial-gradient(ellipse, rgba(99,102,241,0.08) 0%, transparent 70%);
-  pointer-events:none;
-}
-.login-screen.hidden { display:none; }
-.login-icon {
-  font-size: 2.8rem; margin-bottom: 16px;
-  filter: drop-shadow(0 4px 12px rgba(99,102,241,0.3));
-}
-.login-brand {
-  font-size: 2rem; font-weight: 700;
-  background: linear-gradient(135deg, #e8eaf0, #8b92ab);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  margin-bottom: 8px; letter-spacing: -1px;
-}
-.login-tagline {
-  font-size: 0.9rem; color: var(--text2);
-  text-align:center; max-width: 320px;
-  line-height: 1.5; margin-bottom: 32px;
-}
-.login-features {
-  display:flex; flex-direction:column; gap:12px;
-  margin-bottom:32px; width:100%; max-width:340px;
-}
-.login-feature {
-  display:flex; align-items:center; gap:12px;
-  padding: 12px 16px;
-  background: var(--card); border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-}
-.login-feature-icon { font-size: 1.2rem; flex-shrink:0; }
-.login-feature-text { font-size: 0.82rem; color: var(--text2); }
-.login-feature-text strong { color: var(--text); font-weight: 600; }
+  /* --- HERO --- */
+  .hero {
+    position: relative; z-index: 1; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 120px 20px 80px;
+  }
+  .badge {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    padding: 6px 16px; border: 1px solid var(--border); border-radius: 100px;
+    color: var(--accent-glow); margin-bottom: 32px; letter-spacing: 1px;
+    text-transform: uppercase; animation: fadeInDown 0.8s ease;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif; font-size: clamp(2.8rem, 6vw, 5rem);
+    line-height: 1.1; max-width: 800px; margin-bottom: 24px;
+    animation: fadeInUp 0.8s ease 0.1s both;
+  }
+  h1 .highlight {
+    background: linear-gradient(135deg, var(--accent-glow), var(--green-glow));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .subtitle {
+    font-size: 1.2rem; color: var(--text-dim); max-width: 560px; margin-bottom: 48px;
+    font-weight: 300; animation: fadeInUp 0.8s ease 0.2s both;
+  }
+  .hero-ctas { display: flex; gap: 16px; animation: fadeInUp 0.8s ease 0.3s both; }
+  .hero-visual { margin-top: 64px; width: 100%; max-width: 1000px; animation: fadeInUp 1s ease 0.4s both; }
 
-.btn-google {
-  display:flex; align-items:center; justify-content:center; gap:10px;
-  width:100%; max-width:340px;
-  padding: 14px 20px;
-  background: #fff; color: #1f1f1f;
-  border:none; border-radius: var(--radius-sm);
-  font-family:inherit; font-size:0.92rem; font-weight:600;
-  cursor:pointer; transition: transform 0.15s, box-shadow 0.15s;
-  box-shadow: var(--shadow);
-  margin-bottom: 10px;
-}
-.btn-google:active { transform: scale(0.98); }
-.btn-google svg { width:20px; height:20px; }
+  /* --- FORGE APP --- */
+  .demo-container {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .demo-topbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 20px; background: rgba(30,41,59,0.3);
+    border-bottom: 1px solid var(--border);
+  }
+  .dot { width: 12px; height: 12px; border-radius: 50%; }
+  .dot.r { background: #ef4444; } .dot.y { background: #f59e0b; } .dot.g { background: #10b981; }
+  .demo-topbar span { margin-left: 12px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); }
 
-.btn-email {
-  display:flex; align-items:center; justify-content:center; gap:8px;
-  width:100%; max-width:340px;
-  padding: 14px 20px;
-  background: transparent; color: var(--text2);
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  font-family:inherit; font-size:0.88rem; font-weight:500;
-  cursor:pointer; transition: border-color 0.2s, color 0.2s;
-}
-.btn-email:hover { border-color: var(--text3); color: var(--text); }
+  .demo-body { display: grid; grid-template-columns: 1fr 1fr; min-height: 450px; }
+  .demo-input-panel, .demo-output-panel { padding: 24px; }
+  .demo-input-panel { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+  .demo-output-panel { display: flex; flex-direction: column; background: rgba(10,10,15,0.5); }
 
-.login-legal {
-  font-size: 0.7rem; color: var(--text3);
-  text-align: center; margin-top: 20px;
-  max-width: 300px; line-height: 1.4;
-}
-.login-legal a { color: var(--text2); text-decoration: underline; }
+  .panel-label {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted);
+    margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .panel-label .tag {
+    padding: 2px 8px; border-radius: 4px; font-size: 0.65rem;
+  }
+  .tag-input { background: rgba(99,102,241,0.15); color: var(--accent-glow); }
+  .tag-verified { background: rgba(16,185,129,0.15); color: var(--green-glow); }
+  .tag-error { background: rgba(239,68,68,0.15); color: var(--red); }
+  .tag-running { background: rgba(245,158,11,0.15); color: var(--amber); }
 
-/* ===== SECTION HEADERS ===== */
-.section-header {
-  padding: 20px 16px 12px;
-}
-.section-title {
-  font-size: 1.3rem; font-weight: 700;
-  letter-spacing: -0.5px;
-}
-.section-subtitle {
-  font-size: 0.82rem; color: var(--text2);
-  margin-top: 2px;
-}
+  .demo-textarea {
+    flex: 1; background: transparent; border: none; color: var(--text);
+    font-family: 'JetBrains Mono', monospace; font-size: 0.9rem;
+    line-height: 1.7; resize: none; outline: none;
+  }
+  .demo-textarea::placeholder { color: var(--text-muted); }
 
-/* ===== SEARCH ===== */
-.search-bar {
-  margin: 0 16px 12px; position: relative;
-}
-.search-bar input {
-  width:100%; padding: 11px 12px 11px 38px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius-sm); color: var(--text);
-  font-family:inherit; font-size:0.88rem;
-  outline:none; transition: border-color 0.2s;
-}
-.search-bar input::placeholder { color: var(--text3); }
-.search-bar input:focus { border-color: var(--accent); }
-.search-icon {
-  position:absolute; left:12px; top:50%; transform:translateY(-50%);
-  font-size:0.85rem; color: var(--text3); pointer-events:none;
-}
+  .demo-actions { display: flex; gap: 10px; margin-top: 16px; align-items: center; flex-wrap: wrap; }
 
-/* ===== CATEGORY PILLS ===== */
-.cat-scroll {
-  display:flex; gap:6px; padding: 0 16px 14px;
-  overflow-x:auto; scrollbar-width:none;
-}
-.cat-scroll::-webkit-scrollbar { display:none; }
-.cat-pill {
-  flex-shrink:0; padding: 6px 14px;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 20px; color: var(--text2);
-  font-family:inherit; font-size:0.78rem; font-weight:500;
-  cursor:pointer; transition: all 0.2s; white-space:nowrap;
-}
-.cat-pill.active, .cat-pill:active {
-  background: var(--accent-bg); color: var(--accent);
-  border-color: var(--accent-border);
-}
+  .demo-select {
+    background: var(--bg-deep); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 8px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem; outline: none;
+  }
 
-/* ===== PRODUCT GRID ===== */
-.product-grid {
-  display:grid; grid-template-columns: repeat(2, 1fr);
-  gap:10px; padding: 0 16px 20px;
-}
-.product-card {
-  background: var(--card); border-radius: var(--radius);
-  border: 1px solid var(--border); overflow:hidden;
-  cursor:pointer; transition: transform 0.15s, border-color 0.2s;
-}
-.product-card:active { transform: scale(0.97); }
-.product-card:hover { border-color: var(--border-light); }
-.product-img {
-  width:100%; aspect-ratio:1; object-fit:cover;
-  background: var(--bg2);
-}
-.product-info { padding: 10px 12px 12px; }
-.product-name {
-  font-size: 0.82rem; font-weight: 600;
-  line-height: 1.3; margin-bottom: 4px;
-  display: -webkit-box; -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical; overflow: hidden;
-}
-.product-price {
-  font-size: 0.95rem; font-weight: 700;
-  color: var(--green);
-}
-.product-margin {
-  font-size: 0.7rem; color: var(--text3);
-  margin-top: 2px;
-}
-.product-tags {
-  display:flex; gap:4px; margin-top:6px; flex-wrap:wrap;
-}
-.product-tag {
-  font-size: 0.62rem; padding: 2px 6px;
-  background: var(--accent-bg); color: var(--accent);
-  border-radius: 4px; font-weight: 500;
-}
+  .btn-forge {
+    padding: 10px 28px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    color: white; border: none; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-weight: 600; font-size: 0.85rem;
+    cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 8px;
+  }
+  .btn-forge:hover { box-shadow: 0 0 25px rgba(99,102,241,0.5); transform: translateY(-1px); }
+  .btn-forge:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-/* ===== MODALS ===== */
-.modal-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,0.7);
-  backdrop-filter:blur(4px);
-  z-index:200; display:none;
-  align-items:flex-end; justify-content:center;
-}
-.modal-overlay.open { display:flex; }
-.modal-sheet {
-  background: var(--bg2); border-radius: 20px 20px 0 0;
-  width:100%; max-width:500px;
-  max-height: 92vh; overflow-y:auto;
-  padding: 8px 0 calc(20px + var(--safe-bottom));
-  animation: slideUp 0.3s ease-out;
-}
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
-.modal-handle {
-  width:36px; height:4px; background:var(--border);
-  border-radius:4px; margin: 6px auto 16px;
-}
+  .btn-copy {
+    padding: 8px 16px; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    color: var(--text-dim); border-radius: 6px; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem; cursor: pointer; transition: all 0.2s; margin-left: auto;
+  }
+  .btn-copy:hover { border-color: var(--green); color: var(--green); }
 
-/* ===== PRODUCT DETAIL ===== */
-.detail-img {
-  width:100%; aspect-ratio:4/3; object-fit:cover;
-  border-radius: 0 0 var(--radius) var(--radius);
-}
-.detail-body { padding: 20px; }
-.detail-name {
-  font-size:1.2rem; font-weight:700;
-  letter-spacing:-0.3px; margin-bottom:6px;
-}
-.detail-desc {
-  font-size:0.85rem; color:var(--text2);
-  margin-bottom:16px; line-height:1.5;
-}
-.detail-stats {
-  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
-  margin-bottom:20px;
-}
-.detail-stat {
-  background:var(--card); padding:12px;
-  border-radius:var(--radius-sm); text-align:center;
-  border:1px solid var(--border);
-}
-.detail-stat-value { font-size:1rem; font-weight:700; }
-.detail-stat-label { font-size:0.68rem; color:var(--text3); margin-top:2px; }
+  .output-code {
+    flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;
+    line-height: 1.8; color: var(--text); white-space: pre-wrap; overflow-y: auto;
+    tab-size: 4;
+  }
 
-/* Price Slider */
-.price-section {
-  background:var(--card); padding:16px;
-  border-radius:var(--radius); border:1px solid var(--border);
-  margin-bottom:16px;
-}
-.price-row {
-  display:flex; justify-content:space-between; align-items:center;
-  margin-bottom:8px;
-}
-.price-label { font-size:0.8rem; color:var(--text2); }
-.price-value { font-size:1.3rem; font-weight:700; color:var(--green); }
-.price-slider {
-  width:100%; -webkit-appearance:none; appearance:none;
-  height:6px; border-radius:3px;
-  background: linear-gradient(to right, var(--accent), var(--green));
-  outline:none; margin:8px 0;
-}
-.price-slider::-webkit-slider-thumb {
-  -webkit-appearance:none; width:22px; height:22px;
-  border-radius:50%; background:#fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  cursor:pointer;
-}
-.margin-info {
-  display:flex; justify-content:space-between;
-  font-size:0.78rem; color:var(--text3);
-}
+  .output-result {
+    margin-top: 12px; padding: 12px 16px; border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+    white-space: pre-wrap; max-height: 200px; overflow-y: auto;
+  }
+  .output-result.success { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.2); color: var(--green-glow); }
+  .output-result.error { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; }
+  .output-result.info { background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2); color: var(--accent-glow); }
 
-/* Launch Button */
-.btn-launch {
-  width:100%; padding:15px;
-  background: linear-gradient(135deg, var(--accent), #818cf8);
-  color:#fff; border:none; border-radius:var(--radius-sm);
-  font-family:inherit; font-size:1rem; font-weight:700;
-  cursor:pointer; transition: transform 0.15s, opacity 0.15s;
-  box-shadow: 0 4px 16px rgba(99,102,241,0.3);
-}
-.btn-launch:active { transform:scale(0.98); opacity:0.9; }
-.btn-launch:disabled {
-  opacity:0.5; cursor:not-allowed; transform:none;
-}
+  .output-explanation {
+    margin-top: 12px; padding: 12px 16px;
+    background: rgba(255,255,255,0.02); border-radius: 8px;
+    font-size: 0.85rem; color: var(--text-dim); line-height: 1.6;
+  }
 
-/* ===== STORES LIST ===== */
-.store-card {
-  background:var(--card); border-radius:var(--radius);
-  border:1px solid var(--border); padding:16px;
-  margin: 0 16px 10px;
-  transition: border-color 0.2s;
-}
-.store-card:hover { border-color:var(--border-light); }
-.store-header {
-  display:flex; justify-content:space-between; align-items:flex-start;
-  margin-bottom:10px;
-}
-.store-name { font-size:0.95rem; font-weight:700; }
-.store-status {
-  font-size:0.68rem; padding:3px 8px; border-radius:4px;
-  font-weight:600;
-}
-.store-status.active { background:var(--green-bg); color:var(--green); }
-.store-status.inactive { background:var(--red-bg); color:var(--red); }
-.store-meta {
-  font-size:0.78rem; color:var(--text2);
-  margin-bottom:10px;
-}
-.store-stats {
-  display:flex; gap:16px; font-size:0.8rem;
-}
-.store-stat-num { font-weight:700; }
-.store-stat-label { color:var(--text3); margin-left:3px; }
-.store-actions {
-  display:flex; gap:8px; margin-top:12px;
-}
-.btn-sm {
-  padding:7px 14px; border-radius:var(--radius-sm);
-  font-family:inherit; font-size:0.78rem; font-weight:600;
-  cursor:pointer; border:1px solid var(--border);
-  background:var(--bg2); color:var(--text2);
-  transition: all 0.2s;
-}
-.btn-sm:hover { border-color:var(--text3); color:var(--text); }
-.btn-sm.primary {
-  background:var(--accent); border-color:var(--accent);
-  color:#fff;
-}
+  .output-placeholder {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem; text-align: center; line-height: 1.8;
+  }
 
-/* ===== ORDERS ===== */
-.order-card {
-  background:var(--card); border-radius:var(--radius);
-  border:1px solid var(--border); padding:14px 16px;
-  margin:0 16px 8px;
-}
-.order-top {
-  display:flex; justify-content:space-between; align-items:center;
-  margin-bottom:6px;
-}
-.order-id { font-size:0.82rem; font-weight:600; font-family:monospace; }
-.order-status {
-  font-size:0.68rem; padding:3px 8px; border-radius:4px;
-  font-weight:600;
-}
-.order-status.pending { background:var(--orange-bg); color:var(--orange); }
-.order-status.shipped { background:var(--accent-bg); color:var(--accent); }
-.order-status.delivered { background:var(--green-bg); color:var(--green); }
-.order-details {
-  font-size:0.78rem; color:var(--text2);
-}
-.order-amount {
-  font-size:0.9rem; font-weight:700; color:var(--green);
-  margin-top:6px;
-}
+  .output-status {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text-muted);
+  }
 
-/* ===== PROFILE ===== */
-.profile-card {
-  background:var(--card); border-radius:var(--radius);
-  border:1px solid var(--border); padding:20px;
-  margin:0 16px 10px;
-}
-.balance-card {
-  background: linear-gradient(135deg, #1a1040 0%, #251650 50%, #1a1040 100%);
-  border-radius:var(--radius); padding:24px;
-  margin:0 16px 10px;
-  border:1px solid rgba(99,102,241,0.2);
-  position:relative; overflow:hidden;
-}
-.balance-card::before {
-  content:''; position:absolute; top:-50%; right:-30%;
-  width:200px; height:200px;
-  background: radial-gradient(circle, rgba(99,102,241,0.15), transparent 70%);
-  pointer-events:none;
-}
-.balance-label {
-  font-size:0.78rem; color:var(--text2); margin-bottom:4px;
-}
-.balance-amount {
-  font-size:2.2rem; font-weight:700;
-  background: linear-gradient(135deg, #e8eaf0, #a78bfa);
-  -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-}
-.balance-row {
-  display:flex; justify-content:space-between;
-  margin-top:14px; font-size:0.8rem; color:var(--text2);
-}
-.btn-withdraw {
-  width:100%; margin-top:16px; padding:12px;
-  background: rgba(99,102,241,0.15);
-  border:1px solid rgba(99,102,241,0.3);
-  border-radius:var(--radius-sm);
-  color:#a78bfa; font-family:inherit;
-  font-size:0.88rem; font-weight:600;
-  cursor:pointer; transition:all 0.2s;
-}
-.btn-withdraw:hover {
-  background:rgba(99,102,241,0.25);
-}
+  /* Loading spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    width: 16px; height: 16px; border: 2px solid var(--border);
+    border-top-color: var(--accent-glow); border-radius: 50%;
+    animation: spin 0.8s linear infinite; display: inline-block;
+  }
 
-/* Payment method cards */
-.pay-method {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:14px; background:var(--bg);
-  border-radius:var(--radius-sm); margin-bottom:8px;
-}
-.pay-method-info { display:flex; align-items:center; gap:10px; }
-.pay-method-icon {
-  width:36px; height:36px; border-radius:8px;
-  display:flex; align-items:center; justify-content:center;
-  font-size:1.1rem;
-}
-.pay-method-name { font-size:0.85rem; font-weight:600; }
-.pay-method-status { font-size:0.72rem; color:var(--text3); }
-.btn-connect {
-  padding:7px 16px; border-radius:var(--radius-sm);
-  font-family:inherit; font-size:0.78rem; font-weight:600;
-  cursor:pointer; border:none; transition:all 0.2s;
-}
+  /* Quick examples */
+  .examples-bar {
+    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .example-chip {
+    padding: 4px 12px; background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.15);
+    border-radius: 100px; font-size: 0.72rem; color: var(--accent-glow);
+    cursor: pointer; transition: all 0.2s; font-family: 'JetBrains Mono', monospace;
+  }
+  .example-chip:hover { background: rgba(99,102,241,0.15); border-color: var(--accent); }
 
-/* PayPal input */
-.paypal-form {
-  display:flex; gap:8px; margin-top:8px;
-}
-.paypal-form input {
-  flex:1; padding:9px 12px;
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius-sm); color:var(--text);
-  font-family:inherit; font-size:0.85rem;
-  outline:none;
-}
-.paypal-form input:focus { border-color:var(--accent); }
-.paypal-form button {
-  padding:9px 18px; border-radius:var(--radius-sm);
-  background:#ffc439; color:#000; border:none;
-  font-family:inherit; font-size:0.82rem; font-weight:700;
-  cursor:pointer;
-}
+  /* --- FEATURES --- */
+  section { position: relative; z-index: 1; }
+  .features { padding: 120px 40px; max-width: 1100px; margin: 0 auto; }
+  .section-label { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 3px; color: var(--accent-glow); margin-bottom: 16px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: 2.5rem; margin-bottom: 60px; max-width: 500px; line-height: 1.2; }
 
-/* Payout history */
-.payout-item {
-  display:flex; justify-content:space-between; align-items:center;
-  padding:10px 0; border-bottom:1px solid var(--border);
-  font-size:0.82rem;
-}
-.payout-item:last-child { border-bottom:none; }
+  .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+  .feature-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 32px; transition: all 0.3s;
+  }
+  .feature-card:hover { border-color: var(--accent); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(99,102,241,0.1); }
+  .feature-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; margin-bottom: 20px; }
+  .feature-icon.purple { background: rgba(99,102,241,0.15); }
+  .feature-icon.green { background: rgba(16,185,129,0.15); }
+  .feature-icon.amber { background: rgba(245,158,11,0.15); }
+  .feature-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; }
+  .feature-card p { color: var(--text-dim); font-size: 0.9rem; line-height: 1.6; }
 
-/* Logout */
-.btn-logout {
-  width:100%; padding:13px; margin: 0 16px 20px;
-  width: calc(100% - 32px);
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius-sm); color:var(--red);
-  font-family:inherit; font-size:0.88rem; font-weight:600;
-  cursor:pointer; transition:all 0.2s;
-}
-.btn-logout:hover { border-color:var(--red); background:var(--red-bg); }
+  /* --- PRICING --- */
+  .pricing { padding: 120px 40px; max-width: 1000px; margin: 0 auto; text-align: center; }
+  .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 60px; text-align: left; }
+  .price-card {
+    background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 36px; display: flex; flex-direction: column; transition: all 0.3s;
+  }
+  .price-card.featured { border-color: var(--accent); box-shadow: 0 0 40px rgba(99,102,241,0.15); position: relative; }
+  .price-card.featured::before {
+    content: 'POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: white; font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem; font-weight: 700; padding: 4px 14px; border-radius: 100px; letter-spacing: 1px;
+  }
+  .price-tier { font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-muted); margin-bottom: 12px; }
+  .price-amount { font-family: 'Playfair Display', serif; font-size: 2.8rem; font-weight: 700; margin-bottom: 4px; }
+  .price-amount span { font-size: 1rem; color: var(--text-dim); font-family: 'DM Sans'; }
+  .price-desc { color: var(--text-dim); font-size: 0.85rem; margin-bottom: 28px; padding-bottom: 28px; border-bottom: 1px solid var(--border); }
+  .price-features { list-style: none; flex: 1; margin-bottom: 28px; }
+  .price-features li { color: var(--text-dim); font-size: 0.85rem; padding: 6px 0; display: flex; align-items: center; gap: 10px; }
+  .price-features li::before { content: '✓'; color: var(--green); font-weight: 700; font-size: 0.8rem; }
+  .price-card .btn { width: 100%; text-align: center; }
 
-/* ===== NETWORK ===== */
-.network-card {
-  background:var(--card); border-radius:var(--radius);
-  border:1px solid var(--border); padding:16px;
-  margin:0 16px 10px;
-}
-.network-card-title {
-  font-size:0.85rem; font-weight:700; margin-bottom:12px;
-  display:flex; align-items:center; gap:6px;
-}
-.trend-item {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:10px 0; border-bottom:1px solid var(--border);
-}
-.trend-item:last-child { border-bottom:none; }
-.trend-rank {
-  font-size:0.75rem; font-weight:700; color:var(--accent);
-  width:24px;
-}
-.trend-name { font-size:0.82rem; font-weight:600; flex:1; }
-.trend-sales { font-size:0.8rem; font-weight:700; color:var(--green); }
+  /* --- WAITLIST --- */
+  .waitlist { padding: 120px 40px; text-align: center; max-width: 600px; margin: 0 auto; }
+  .waitlist-form { display: flex; gap: 12px; margin-top: 40px; }
+  .waitlist-input {
+    flex: 1; padding: 14px 20px; background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'DM Sans'; font-size: 0.95rem;
+    outline: none; transition: border-color 0.3s;
+  }
+  .waitlist-input:focus { border-color: var(--accent); }
+  .waitlist-count { margin-top: 20px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); }
+  .waitlist-count strong { color: var(--green-glow); }
 
-/* ===== SUCCESS OVERLAY ===== */
-.success-overlay {
-  position:fixed; inset:0; background:rgba(0,0,0,0.85);
-  backdrop-filter:blur(8px);
-  z-index:300; display:none;
-  align-items:center; justify-content:center;
-  padding:24px;
-}
-.success-overlay.open { display:flex; }
-.success-card {
-  background:var(--card); border-radius:var(--radius);
-  border:1px solid var(--green-border);
-  padding:32px 24px; text-align:center;
-  max-width:400px; width:100%;
-  animation: scaleIn 0.3s ease-out;
-}
-@keyframes scaleIn {
-  from { transform:scale(0.9); opacity:0; }
-  to { transform:scale(1); opacity:1; }
-}
-.success-icon { font-size:3rem; margin-bottom:12px; }
-.success-title {
-  font-size:1.2rem; font-weight:700; margin-bottom:6px;
-}
-.success-url {
-  font-size:0.82rem; color:var(--accent);
-  word-break:break-all; margin:12px 0;
-  padding:10px; background:var(--bg);
-  border-radius:var(--radius-sm); border:1px solid var(--border);
-  cursor:pointer;
-}
-.success-actions {
-  display:flex; flex-direction:column; gap:8px; margin-top:16px;
-}
+  footer {
+    position: relative; z-index: 1; padding: 40px; border-top: 1px solid var(--border);
+    text-align: center; font-size: 0.8rem; color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
 
-/* ===== EMPTY STATES ===== */
-.empty-state {
-  text-align:center; padding:48px 24px;
-  color:var(--text3);
-}
-.empty-icon { font-size:2.5rem; margin-bottom:12px; }
-.empty-text { font-size:0.88rem; }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeInDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: translateY(0); } }
 
-/* ===== LOADING ===== */
-.spinner {
-  width:24px; height:24px; border:3px solid var(--border);
-  border-top-color:var(--accent); border-radius:50%;
-  animation: spin 0.8s linear infinite;
-  margin:20px auto;
-}
-@keyframes spin { to { transform:rotate(360deg); } }
-
-/* ===== ANALYTICS ===== */
-.analytics-grid {
-  display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
-  margin-bottom:12px;
-}
-.analytics-card {
-  background:var(--bg); padding:14px;
-  border-radius:var(--radius-sm);
-  border:1px solid var(--border);
-}
-.analytics-value { font-size:1.1rem; font-weight:700; }
-.analytics-label { font-size:0.7rem; color:var(--text3); margin-top:2px; }
-
-/* ===== SHARE MODAL ===== */
-.share-platforms {
-  display:grid; grid-template-columns:repeat(2,1fr); gap:8px;
-}
-.share-btn {
-  display:flex; align-items:center; gap:8px;
-  padding:12px; background:var(--card);
-  border:1px solid var(--border); border-radius:var(--radius-sm);
-  color:var(--text); font-family:inherit; font-size:0.82rem;
-  font-weight:600; cursor:pointer; transition:all 0.2s;
-}
-.share-btn:hover { border-color:var(--text3); }
-
-/* ===== CONTENT MODAL ===== */
-.content-tabs {
-  display:flex; gap:6px; margin-bottom:16px;
-  overflow-x:auto; scrollbar-width:none;
-}
-.content-tabs::-webkit-scrollbar { display:none; }
-.content-tab {
-  flex-shrink:0; padding:8px 16px;
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius-sm); color:var(--text2);
-  font-family:inherit; font-size:0.8rem; font-weight:600;
-  cursor:pointer; transition:all 0.2s; white-space:nowrap;
-}
-.content-tab.active {
-  background:var(--accent-bg); color:var(--accent);
-  border-color:var(--accent-border);
-}
-.content-result {
-  background:var(--card); border:1px solid var(--border);
-  border-radius:var(--radius-sm); padding:16px;
-  font-size:0.85rem; line-height:1.6;
-  white-space:pre-wrap;
-}
-.btn-copy {
-  display:inline-flex; align-items:center; gap:4px;
-  padding:6px 12px; background:var(--accent-bg);
-  border:1px solid var(--accent-border);
-  border-radius:6px; color:var(--accent);
-  font-family:inherit; font-size:0.75rem; font-weight:600;
-  cursor:pointer; margin-top:8px;
-}
-
-/* ===== RESPONSIVE ===== */
-@media (min-width:640px) {
-  .product-grid { grid-template-columns:repeat(3,1fr); }
-}
-@media (min-width:900px) {
-  .product-grid { grid-template-columns:repeat(4,1fr); }
-}
+  @media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .nav-links { display: none; }
+    .hero { padding: 100px 20px 60px; }
+    .demo-body { grid-template-columns: 1fr; }
+    .demo-input-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    .features-grid, .pricing-grid { grid-template-columns: 1fr; }
+    .waitlist-form { flex-direction: column; }
+    .features, .pricing, .waitlist { padding: 80px 20px; }
+  }
 </style>
 </head>
 <body>
 
-<!-- ============================================================ -->
-<!-- LOGIN SCREEN -->
-<!-- ============================================================ -->
-<div class="login-screen" id="loginScreen">
-  <div class="login-icon">🏪</div>
-  <div class="login-brand">DropOne</div>
-  <div class="login-tagline">Plateforme de dropshipping professionnelle.<br>Créez, vendez, encaissez.</div>
+<div class="grid-bg"></div>
+<div class="glow-orb purple"></div>
+<div class="glow-orb green"></div>
 
-  <div class="login-features">
-    <div class="login-feature">
-      <span class="login-feature-icon">📦</span>
-      <div class="login-feature-text"><strong>134 produits</strong> prêts à vendre avec marges 60-85%</div>
-    </div>
-    <div class="login-feature">
-      <span class="login-feature-icon">💳</span>
-      <div class="login-feature-text"><strong>Paiement intégré</strong> — Stripe & PayPal, encaissez directement</div>
-    </div>
-    <div class="login-feature">
-      <span class="login-feature-icon">📊</span>
-      <div class="login-feature-text"><strong>Analytics & AI</strong> — Suivi des ventes, contenu auto-généré</div>
-    </div>
+<nav>
+  <div class="logo"><div class="icon">∫</div> MathForge</div>
+  <div class="nav-links">
+    <a href="#demo">Try it</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#waitlist" class="btn btn-primary">Join Waitlist</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="badge">✦ Beta — Now Open</div>
+  <h1>From <span class="highlight">LaTeX</span> to running code<br>in seconds</h1>
+  <p class="subtitle">Paste your math. Get verified Python, SageMath, or SymPy code that actually works. Built by researchers, for researchers.</p>
+  <div class="hero-ctas">
+    <a href="#demo" class="btn btn-primary">Try the Demo ↓</a>
+    <a href="#waitlist" class="btn btn-ghost">Join Waitlist</a>
   </div>
 
-  <button class="btn-google" id="btnGoogle" onclick="loginWithGoogle()">
-    <svg viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-    Continuer avec Google
-  </button>
-
-  <button class="btn-email" onclick="loginWithEmail()">
-    Continuer avec un email
-  </button>
-
-  <div class="login-legal">
-    En continuant, vous acceptez nos <a href="#">CGU</a> et notre <a href="#">politique de confidentialité</a>.
-  </div>
-</div>
-
-<!-- ============================================================ -->
-<!-- MAIN APP -->
-<!-- ============================================================ -->
-<div class="app" id="mainApp">
-  <!-- TOP BAR -->
-  <div class="topbar">
-    <div class="topbar-brand">
-      <div class="topbar-logo">DropOne</div>
-      <div class="topbar-badge">PRO</div>
-    </div>
-    <div class="topbar-user">
-      <div class="topbar-avatar" id="topbarAvatar" onclick="switchTab('profile',document.querySelector('.tab:last-child'))">
-        <span id="avatarContent">👤</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- CONTENT -->
-  <div class="app-content">
-
-    <!-- ===== EXPLORE ===== -->
-    <div class="screen active" id="screen-explore">
-      <div class="section-header">
-        <div class="section-title">Catalogue</div>
-        <div class="section-subtitle">Choisissez un produit et lancez votre boutique</div>
-      </div>
-      <div class="search-bar">
-        <span class="search-icon">🔍</span>
-        <input type="text" placeholder="Rechercher un produit..." id="searchInput" oninput="filterProducts()">
-      </div>
-      <div class="cat-scroll" id="catScroll"></div>
-      <div class="product-grid" id="productGrid"></div>
-    </div>
-
-    <!-- ===== NETWORK ===== -->
-    <div class="screen" id="screen-network">
-      <div class="section-header">
-        <div class="section-title">Réseau</div>
-        <div class="section-subtitle">Tendances, classement et performances</div>
-      </div>
-      <div id="networkContent"></div>
-    </div>
-
-    <!-- ===== STORES ===== -->
-    <div class="screen" id="screen-stores">
-      <div class="section-header">
-        <div class="section-title">Mes boutiques</div>
-        <div class="section-subtitle">Gérez vos boutiques actives</div>
-      </div>
-      <div id="storesContent"></div>
-    </div>
-
-    <!-- ===== ORDERS ===== -->
-    <div class="screen" id="screen-orders">
-      <div class="section-header">
-        <div class="section-title">Commandes</div>
-        <div class="section-subtitle">Suivi de toutes vos ventes</div>
-      </div>
-      <div id="ordersContent"></div>
-    </div>
-
-    <!-- ===== PROFILE ===== -->
-    <div class="screen" id="screen-profile">
-      <div class="section-header">
-        <div class="section-title">Mon compte</div>
-      </div>
-
-      <!-- User card -->
-      <div class="profile-card" style="text-align:center;">
-        <img id="profileAvatar" src="" style="display:none;width:56px;height:56px;border-radius:50%;margin:0 auto 10px;border:2px solid var(--border);">
-        <div id="profileName" style="font-size:1.1rem;font-weight:700;margin-bottom:2px;"></div>
-        <div id="profileEmail" style="font-size:0.82rem;color:var(--text2);">Non connecté</div>
-        <div id="profileProvider" style="font-size:0.72rem;color:var(--text3);margin-top:4px;"></div>
-      </div>
-
-      <!-- Balance -->
-      <div class="balance-card">
-        <div class="balance-label">Solde disponible</div>
-        <div class="balance-amount" id="sellerBalance">€0.00</div>
-        <div class="balance-row">
-          <span>Total gagné <strong id="sellerTotalEarned">€0.00</strong></span>
-          <span>Retiré <strong id="sellerTotalWithdrawn">€0.00</strong></span>
+  <!-- FORGE APP -->
+  <div class="hero-visual" id="demo">
+    <div class="demo-container">
+      <div class="demo-topbar">
+        <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+        <span>mathforge — workspace</span>
+        <div id="statusIndicator" style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+          <div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>
+          <span style="font-size:0.7rem;color:var(--text-muted);">Ready</span>
         </div>
-        <button class="btn-withdraw" onclick="requestWithdrawal()">
-          Retirer mes gains →
-        </button>
       </div>
+      <div class="demo-body">
+        <!-- INPUT PANEL -->
+        <div class="demo-input-panel">
+          <div class="panel-label">Input <span class="tag tag-input">LaTeX / Natural Language</span></div>
+          <textarea class="demo-textarea" id="mathInput" placeholder="Try one of the examples below, or type:
 
-      <!-- Payment Methods -->
-      <div class="profile-card">
-        <div style="font-size:0.88rem;font-weight:700;margin-bottom:14px;">Méthodes de paiement</div>
-
-        <div class="pay-method">
-          <div class="pay-method-info">
-            <div class="pay-method-icon" style="background:rgba(99,102,241,0.1);">💳</div>
-            <div>
-              <div class="pay-method-name">Stripe Connect</div>
-              <div class="pay-method-status" id="stripeStatus">Non configuré</div>
-            </div>
+• Compute the first 20 primes p where E: y²=x³-x has a_p = 0
+• \sum_{k=0}^{100} \frac{(-1)^k}{k!}
+• Solve the heat equation u_t = u_xx on [0,1] with u(0)=sin(πx)
+• Find the class number of Q(√-23)"></textarea>
+          <div class="examples-bar">
+            <span class="example-chip" onclick="loadExample('bsd')">BSD verification</span>
+            <span class="example-chip" onclick="loadExample('pde')">Heat equation</span>
+            <span class="example-chip" onclick="loadExample('prime')">Prime counting</span>
+            <span class="example-chip" onclick="loadExample('classnum')">Class number</span>
           </div>
-          <button class="btn-connect" id="stripeConnectBtn" onclick="connectStripe()" style="background:var(--accent);color:#fff;">Connecter</button>
-        </div>
-
-        <div class="pay-method">
-          <div class="pay-method-info">
-            <div class="pay-method-icon" style="background:rgba(245,158,11,0.1);">🅿️</div>
-            <div>
-              <div class="pay-method-name">PayPal</div>
-              <div class="pay-method-status" id="paypalStatus">Non configuré</div>
-            </div>
+          <div class="demo-actions">
+            <select class="demo-select" id="targetLang">
+              <option value="python">Python + SymPy</option>
+              <option value="sage">SageMath</option>
+              <option value="numpy">NumPy / SciPy</option>
+              <option value="pari">PARI/GP</option>
+            </select>
+            <select class="demo-select" id="domainSelect">
+              <option value="">Auto-detect domain</option>
+              <option value="number_theory">Number Theory</option>
+              <option value="pde">PDEs</option>
+              <option value="algebra">Algebra</option>
+              <option value="numerical">Numerical Analysis</option>
+            </select>
+            <button class="btn-forge" id="forgeBtn" onclick="forge()">⚡ Forge</button>
           </div>
         </div>
-        <div class="paypal-form">
-          <input type="email" id="paypalEmailInput" placeholder="Email PayPal">
-          <button onclick="savePaypalEmail()">Enregistrer</button>
+
+        <!-- OUTPUT PANEL -->
+        <div class="demo-output-panel">
+          <div class="panel-label">
+            Output
+            <span class="tag tag-verified" id="outputTag">Ready</span>
+            <button class="btn-copy" id="copyBtn" onclick="copyCode()" style="display:none;">Copy code</button>
+          </div>
+          <div id="outputArea" class="output-placeholder">
+            ← Enter a mathematical expression<br>and click ⚡ Forge
+          </div>
         </div>
       </div>
-
-      <!-- Payout History -->
-      <div class="profile-card">
-        <div style="font-size:0.88rem;font-weight:700;margin-bottom:10px;">Historique des retraits</div>
-        <div id="payoutHistory" style="font-size:0.82rem;color:var(--text3);">Aucun retrait pour le moment</div>
-      </div>
-
-      <button class="btn-logout" onclick="logout()">Se déconnecter</button>
-    </div>
-
-  </div>
-
-  <!-- TAB BAR -->
-  <div class="tabbar">
-    <button class="tab active" onclick="switchTab('explore', this)">
-      <span class="tab-icon">🔍</span>Catalogue
-    </button>
-    <button class="tab" onclick="switchTab('network', this)">
-      <span class="tab-icon">📊</span>Réseau
-    </button>
-    <button class="tab" onclick="switchTab('stores', this)">
-      <span class="tab-icon">🏪</span>Boutiques
-    </button>
-    <button class="tab" onclick="switchTab('orders', this)" style="position:relative;">
-      <span class="tab-icon">📦</span>Commandes
-      <div class="tab-dot" id="ordersDot"></div>
-    </button>
-    <button class="tab" onclick="switchTab('profile', this)">
-      <span class="tab-icon">👤</span>Compte
-    </button>
-  </div>
-</div>
-
-<!-- ============================================================ -->
-<!-- PRODUCT DETAIL MODAL -->
-<!-- ============================================================ -->
-<div class="modal-overlay" id="productModal">
-  <div class="modal-sheet">
-    <div class="modal-handle" onclick="closeModal()"></div>
-    <img class="detail-img" id="detailImg" src="" alt="">
-    <div class="detail-body">
-      <div class="detail-name" id="detailName"></div>
-      <div class="detail-desc" id="detailDesc"></div>
-
-      <div class="detail-stats">
-        <div class="detail-stat">
-          <div class="detail-stat-value" id="detailCost">-</div>
-          <div class="detail-stat-label">Coût fournisseur</div>
-        </div>
-        <div class="detail-stat">
-          <div class="detail-stat-value" id="detailShipping">-</div>
-          <div class="detail-stat-label">Livraison</div>
-        </div>
-        <div class="detail-stat">
-          <div class="detail-stat-value" id="detailScore">-</div>
-          <div class="detail-stat-label">Score tendance</div>
-        </div>
-      </div>
-
-      <div class="price-section">
-        <div class="price-row">
-          <span class="price-label">Votre prix de vente</span>
-          <span class="price-value" id="priceDisplay">€0.00</span>
-        </div>
-        <input type="range" class="price-slider" id="priceSlider" min="0" max="100" value="50" oninput="updatePrice()">
-        <div class="margin-info">
-          <span>Marge: <strong id="marginDisplay">€0.00</strong></span>
-          <span id="marginPct">0%</span>
-        </div>
-      </div>
-
-      <button class="btn-launch" id="btnLaunch" onclick="launchStore()">
-        Créer ma boutique →
-      </button>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ============================================================ -->
-<!-- SUCCESS OVERLAY -->
-<!-- ============================================================ -->
-<div class="success-overlay" id="successOverlay">
-  <div class="success-card">
-    <div class="success-icon">🎉</div>
-    <div class="success-title">Boutique créée !</div>
-    <div class="success-url" id="successUrl" onclick="copyStoreUrl()"></div>
-    <div class="success-actions">
-      <button class="btn-launch" onclick="window.open(document.getElementById('successUrl').dataset.url,'_blank')">Voir ma boutique</button>
-      <button class="btn-sm" style="width:100%;padding:12px;text-align:center;" onclick="shareStore()">Partager</button>
-      <button class="btn-sm" style="width:100%;padding:12px;text-align:center;" onclick="closeSuccess()">Retour au catalogue</button>
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-label">Why MathForge</div>
+  <h2>Not another ChatGPT wrapper.</h2>
+  <div class="features-grid">
+    <div class="feature-card"><div class="feature-icon purple">∂</div><h3>Native LaTeX Input</h3><p>Paste formulas directly. No need to explain your notation — MathForge understands the math, not just the words.</p></div>
+    <div class="feature-card"><div class="feature-icon green">✓</div><h3>Code That Runs</h3><p>Every output is executed in a sandboxed environment before being returned. If it doesn't compile, you don't see it.</p></div>
+    <div class="feature-card"><div class="feature-icon amber">⚙</div><h3>Domain Templates</h3><p>Pre-built contexts for PDEs, number theory, algebraic geometry, numerical analysis. The AI knows your libraries.</p></div>
+    <div class="feature-card"><div class="feature-icon green">⟨⟩</div><h3>Multi-Target</h3><p>Generate for Python, SageMath, PARI/GP, MATLAB, or Julia — from the same mathematical input.</p></div>
+    <div class="feature-card"><div class="feature-icon purple">📂</div><h3>Research Workspaces</h3><p>Organize by project. Track your computations across sessions. Export clean notebooks.</p></div>
+    <div class="feature-card"><div class="feature-icon amber">🔒</div><h3>Your Math, Private</h3><p>Your research is yours. No training on your data. Full privacy for unpublished work.</p></div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="section-label">Pricing</div>
+  <h2 style="margin-left:auto;margin-right:auto;">Simple, researcher-friendly.</h2>
+  <div class="pricing-grid">
+    <div class="price-card">
+      <div class="price-tier">Free</div>
+      <div class="price-amount">0€</div>
+      <p class="price-desc">Get started, no card needed</p>
+      <ul class="price-features">
+        <li>10 forges per day</li>
+        <li>Python + SymPy output</li>
+        <li>Basic templates</li>
+        <li>Community support</li>
+      </ul>
+      <a href="#waitlist" class="btn btn-ghost">Get Started</a>
+    </div>
+    <div class="price-card featured">
+      <div class="price-tier">Pro</div>
+      <div class="price-amount">15€<span>/mo</span></div>
+      <p class="price-desc">For active researchers</p>
+      <ul class="price-features">
+        <li>Unlimited forges</li>
+        <li>All languages & targets</li>
+        <li>All domain templates</li>
+        <li>Research workspaces</li>
+        <li>Priority execution</li>
+      </ul>
+      <a href="#waitlist" class="btn btn-primary">Join Waitlist</a>
+    </div>
+    <div class="price-card">
+      <div class="price-tier">Team</div>
+      <div class="price-amount">40€<span>/mo</span></div>
+      <p class="price-desc">For labs & research groups</p>
+      <ul class="price-features">
+        <li>Everything in Pro</li>
+        <li>5 team members</li>
+        <li>Shared workspaces</li>
+        <li>Admin dashboard</li>
+        <li>Invoice & institutional billing</li>
+      </ul>
+      <a href="#waitlist" class="btn btn-ghost">Contact Us</a>
     </div>
   </div>
-</div>
+</section>
 
-<!-- ============================================================ -->
-<!-- SHARE MODAL -->
-<!-- ============================================================ -->
-<div class="modal-overlay" id="shareModal">
-  <div class="modal-sheet" style="padding:20px;">
-    <div class="modal-handle" onclick="closeShare()"></div>
-    <div style="font-size:1.1rem;font-weight:700;margin-bottom:16px;">Partager votre boutique</div>
-    <div class="share-platforms" id="sharePlatforms"></div>
-    <div style="margin-top:12px;">
-      <div style="font-size:0.78rem;color:var(--text3);margin-bottom:6px;">Lien direct</div>
-      <div class="success-url" id="shareUrl" onclick="copyShareLink()" style="margin:0;"></div>
-    </div>
+<!-- WAITLIST -->
+<section class="waitlist" id="waitlist">
+  <div class="section-label">Early Access</div>
+  <h2 style="margin-left:auto;margin-right:auto;">Be the first to forge.</h2>
+  <p class="subtitle" style="margin:16px auto 0;">Join the waitlist and get free Pro access for the first 3 months.</p>
+  <div class="waitlist-form">
+    <input type="email" class="waitlist-input" placeholder="your@university.edu" id="emailInput">
+    <button class="btn btn-primary" onclick="joinWaitlist()">Join →</button>
   </div>
-</div>
+  <p class="waitlist-count"><strong id="waitlistCount">847</strong> researchers already signed up</p>
+</section>
 
-<!-- ============================================================ -->
-<!-- CONTENT AI MODAL -->
-<!-- ============================================================ -->
-<div class="modal-overlay" id="contentModal">
-  <div class="modal-sheet" style="padding:20px;">
-    <div class="modal-handle" onclick="closeContent()"></div>
-    <div style="font-size:1.1rem;font-weight:700;margin-bottom:4px;">Contenu marketing AI</div>
-    <div style="font-size:0.82rem;color:var(--text2);margin-bottom:14px;">Généré pour votre produit</div>
-    <div class="content-tabs" id="contentTabs"></div>
-    <div id="contentResult"></div>
-  </div>
-</div>
+<footer>© 2026 MathForge — Built with ∫ by researchers, for researchers</footer>
 
-<!-- ============================================================ -->
-<!-- ANALYTICS MODAL -->
-<!-- ============================================================ -->
-<div class="modal-overlay" id="analyticsModal">
-  <div class="modal-sheet" style="padding:20px;">
-    <div class="modal-handle" onclick="closeAnalytics()"></div>
-    <div style="font-size:1.1rem;font-weight:700;margin-bottom:14px;">Analytiques</div>
-    <div id="analyticsContent"></div>
-  </div>
-</div>
-
-<!-- ============================================================ -->
-<!-- JAVASCRIPT -->
-<!-- ============================================================ -->
 <script>
-const API = '/api';
-let products = [];
-let currentUser = localStorage.getItem('do_email') || '';
-let currentUserMeta = JSON.parse(localStorage.getItem('do_user_meta') || 'null');
-let selectedProduct = null;
-let supabaseClient = null;
-let lastCreatedSlug = '';
+// ---------------------------------------------------------------------------
+// CONFIG — change this to your deployed backend URL
+// ---------------------------------------------------------------------------
+const API_BASE = '/api';  // proxied via nginx; or use 'http://localhost:8000' for dev
 
 // ---------------------------------------------------------------------------
-// AUTH — Supabase + Google OAuth
+// Quick examples
 // ---------------------------------------------------------------------------
-async function initSupabase() {
-  let cfg = null;
-  try {
-    const res = await fetch(`${API}/config`);
-    cfg = await res.json();
-    if (cfg.supabase_url && cfg.supabase_anon_key && window.supabase) {
-      supabaseClient = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key);
-      supabaseClient.auth.onAuthStateChange((event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          handleAuthUser(session.user);
-        }
-      });
-    }
-  } catch(e) {
-    console.warn('Config fetch failed');
-  }
-  // Hide Google button only if Supabase not available
-  if (!supabaseClient) {
-    const btn = document.getElementById('btnGoogle');
-    if (btn) btn.style.display = 'none';
-  }
-}
+const EXAMPLES = {
+  bsd: `Compute the L-function value L(E, 1) for the elliptic curve E: y² = x³ - x over Q using an Euler product approximation with the first 5000 primes, then verify the BSD prediction by comparing with the algebraic rank.`,
+  pde: `Solve the 1D heat equation u_t = u_xx on the domain [0, 1] with initial condition u(x, 0) = sin(πx) and homogeneous Dirichlet boundary conditions, using finite differences. Plot the solution at t = 0, 0.01, 0.05, 0.1.`,
+  prime: `Compute π(x) (the prime counting function) for x = 10, 100, 1000, ..., 10^8 and compare with the approximation x/ln(x) and Li(x). Display the relative errors in a table.`,
+  classnum: `Compute the class number h(d) for the imaginary quadratic fields Q(√d) where d = -3, -4, -7, -8, -11, -15, -20, -23, -24, -31, -40, -43, -67, -163. Verify which ones have class number 1 (Heegner numbers).`,
+};
 
-function handleAuthUser(user) {
-  const meta = user.user_metadata || {};
-  currentUser = user.email;
-  currentUserMeta = {
-    name: meta.full_name || meta.name || user.email.split('@')[0],
-    avatar: meta.avatar_url || meta.picture || '',
-    provider: user.app_metadata?.provider || 'email',
-  };
-  localStorage.setItem('do_email', currentUser);
-  localStorage.setItem('do_user_meta', JSON.stringify(currentUserMeta));
-  updateProfileUI();
-  showApp();
-}
-
-function updateProfileUI() {
-  const el = (id) => document.getElementById(id);
-  el('profileEmail').textContent = currentUser;
-  if (currentUserMeta?.name) {
-    el('profileName').textContent = currentUserMeta.name;
-  }
-  if (currentUserMeta?.avatar) {
-    el('profileAvatar').src = currentUserMeta.avatar;
-    el('profileAvatar').style.display = 'block';
-    el('avatarContent').innerHTML = `<img src="${currentUserMeta.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-  } else {
-    el('avatarContent').textContent = currentUser ? currentUser[0].toUpperCase() : '👤';
-  }
-  const prov = currentUserMeta?.provider === 'google' ? 'Connecté via Google' : 'Connecté par email';
-  el('profileProvider').textContent = prov;
-}
-
-async function loginWithGoogle() {
-  if (!supabaseClient) {
-    loginWithEmail();
-    return;
-  }
-  try {
-    const { error } = await supabaseClient.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: window.location.origin + '/app' },
-    });
-    if (error) throw error;
-  } catch(e) {
-    console.error('Google login error:', e);
-    alert('Erreur de connexion Google. Essayez avec un email.');
-  }
-}
-
-function loginWithEmail() {
-  const email = prompt("Entrez votre email professionnel :");
-  if (!email || !email.includes('@')) return;
-  currentUser = email.toLowerCase().trim();
-  currentUserMeta = { name: email.split('@')[0], avatar: '', provider: 'email' };
-  localStorage.setItem('do_email', currentUser);
-  localStorage.setItem('do_user_meta', JSON.stringify(currentUserMeta));
-  // Register user in backend
-  fetch(`${API}/auth/register`, {method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({email:currentUser})}).catch(()=>{});
-  updateProfileUI();
-  showApp();
-}
-
-async function logout() {
-  if (supabaseClient) {
-    try { await supabaseClient.auth.signOut(); } catch(e){}
-  }
-  currentUser = '';
-  currentUserMeta = null;
-  localStorage.removeItem('do_email');
-  localStorage.removeItem('do_user_meta');
-  document.getElementById('loginScreen').classList.remove('hidden');
-  document.getElementById('mainApp').style.display = 'none';
-}
-
-function showApp() {
-  document.getElementById('loginScreen').classList.add('hidden');
-  document.getElementById('mainApp').style.display = 'flex';
-  loadProducts();
+function loadExample(key) {
+  document.getElementById('mathInput').value = EXAMPLES[key];
+  // Auto-select domain
+  const domainMap = { bsd: 'number_theory', pde: 'pde', prime: 'number_theory', classnum: 'number_theory' };
+  if (domainMap[key]) document.getElementById('domainSelect').value = domainMap[key];
 }
 
 // ---------------------------------------------------------------------------
-// INIT
+// Forge — call the backend
 // ---------------------------------------------------------------------------
-async function init() {
-  await initSupabase();
+let currentCode = '';
 
-  if (supabaseClient) {
-    try {
-      const { data: { session } } = await supabaseClient.auth.getSession();
-      if (session?.user) {
-        handleAuthUser(session.user);
-        return;
-      }
-    } catch(e) {}
-  }
+async function forge() {
+  const input = document.getElementById('mathInput').value.trim();
+  if (!input) return;
 
-  if (currentUser) {
-    updateProfileUI();
-    showApp();
-  }
-  // else: stay on login screen
-}
+  const lang = document.getElementById('targetLang').value;
+  const domain = document.getElementById('domainSelect').value || null;
+  const btn = document.getElementById('forgeBtn');
+  const output = document.getElementById('outputArea');
+  const tag = document.getElementById('outputTag');
+  const copyBtn = document.getElementById('copyBtn');
+  const status = document.getElementById('statusIndicator');
 
-// ---------------------------------------------------------------------------
-// NAV
-// ---------------------------------------------------------------------------
-function switchTab(tab, el) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(`screen-${tab}`).classList.add('active');
-  if (el) el.classList.add('active');
-  if (tab === 'stores') loadUserStores();
-  if (tab === 'orders') loadOrders();
-  if (tab === 'network') loadNetwork();
-  if (tab === 'profile') loadSellerBalance();
-}
-
-// ---------------------------------------------------------------------------
-// PRODUCTS
-// ---------------------------------------------------------------------------
-let activeCategory = 'all';
-
-async function loadProducts() {
-  try {
-    const res = await fetch(`${API}/products`);
-    const data = await res.json();
-    products = data.products || [];
-  } catch(e) {
-    products = [];
-  }
-  renderCategories();
-  renderProducts();
-}
-
-function renderCategories() {
-  const cats = ['all', ...new Set(products.map(p => p.category))].sort();
-  const labels = {all:'Tous', tech:'Tech', beauty:'Beauté', home:'Maison', fitness:'Fitness',
-    fashion:'Mode', kitchen:'Cuisine', pet:'Animaux', outdoor:'Plein air', wellness:'Bien-être',
-    kids:'Enfants', office:'Bureau', auto:'Auto'};
-  document.getElementById('catScroll').innerHTML = cats.map(c =>
-    `<button class="cat-pill ${c===activeCategory?'active':''}" onclick="filterCategory('${c}')">${labels[c]||c}</button>`
-  ).join('');
-}
-
-function filterCategory(cat) {
-  activeCategory = cat;
-  renderCategories();
-  renderProducts();
-}
-
-function filterProducts() {
-  renderProducts();
-}
-
-function renderProducts() {
-  const q = document.getElementById('searchInput').value.toLowerCase();
-  let filtered = products;
-  if (activeCategory !== 'all') filtered = filtered.filter(p => p.category === activeCategory);
-  if (q) filtered = filtered.filter(p => p.name.toLowerCase().includes(q) || p.short_desc.toLowerCase().includes(q));
-
-  document.getElementById('productGrid').innerHTML = filtered.length ? filtered.map(p => `
-    <div class="product-card" onclick='openProduct(${JSON.stringify(p).replace(/'/g,"&#39;")})'>
-      <img class="product-img" src="${p.images?.[0] || ''}" alt="${p.name}" loading="lazy">
-      <div class="product-info">
-        <div class="product-name">${p.name}</div>
-        <div class="product-price">€${p.suggested_price.toFixed(2)}</div>
-        <div class="product-margin">Marge ${p.margin_pct}% · ${p.shipping_time}</div>
-        <div class="product-tags">
-          ${(p.tags||[]).slice(0,2).map(t => `<span class="product-tag">${t}</span>`).join('')}
-        </div>
-      </div>
-    </div>
-  `).join('') : '<div class="empty-state" style="grid-column:1/-1;"><div class="empty-icon">🔍</div><div class="empty-text">Aucun produit trouvé</div></div>';
-}
-
-// ---------------------------------------------------------------------------
-// PRODUCT DETAIL
-// ---------------------------------------------------------------------------
-function openProduct(product) {
-  selectedProduct = product;
-  document.getElementById('detailImg').src = product.images?.[0] || '';
-  document.getElementById('detailName').textContent = product.name;
-  document.getElementById('detailDesc').textContent = product.short_desc;
-  document.getElementById('detailCost').textContent = `€${product.cost.toFixed(2)}`;
-  document.getElementById('detailShipping').textContent = product.shipping_time;
-  document.getElementById('detailScore').textContent = `${product.trending_score}/100`;
-
-  const slider = document.getElementById('priceSlider');
-  const min = Math.ceil(product.cost * 1.5);
-  const max = Math.ceil(product.cost * 5);
-  slider.min = min;
-  slider.max = max;
-  slider.value = product.suggested_price;
-  updatePrice();
-
-  document.getElementById('productModal').classList.add('open');
-  document.getElementById('btnLaunch').disabled = false;
-  document.getElementById('btnLaunch').textContent = 'Créer ma boutique →';
-}
-
-function closeModal() {
-  document.getElementById('productModal').classList.remove('open');
-}
-
-function updatePrice() {
-  if (!selectedProduct) return;
-  const price = parseFloat(document.getElementById('priceSlider').value);
-  const cost = selectedProduct.cost;
-  const commission = price * 0.08;
-  const margin = price - cost - commission;
-  const pct = Math.round(margin / price * 100);
-
-  document.getElementById('priceDisplay').textContent = `€${price.toFixed(2)}`;
-  document.getElementById('marginDisplay').textContent = `€${margin.toFixed(2)}`;
-  document.getElementById('marginPct').textContent = `${pct}%`;
-}
-
-// ---------------------------------------------------------------------------
-// STORE CREATION
-// ---------------------------------------------------------------------------
-async function launchStore() {
-  if (!currentUser) { loginWithEmail(); return; }
-  if (!selectedProduct) return;
-
-  const btn = document.getElementById('btnLaunch');
+  // Set loading state
   btn.disabled = true;
-  btn.textContent = 'Création en cours...';
-
-  const price = parseFloat(document.getElementById('priceSlider').value);
+  btn.innerHTML = '<span class="spinner"></span> Forging...';
+  tag.className = 'tag tag-running';
+  tag.textContent = 'Running...';
+  copyBtn.style.display = 'none';
+  status.innerHTML = '<span class="spinner"></span><span style="font-size:0.7rem;color:var(--amber);">Processing</span>';
+  output.innerHTML = '<div class="output-placeholder"><span class="spinner" style="width:24px;height:24px;"></span><br>Translating math to code...<br><span style="font-size:0.75rem;color:var(--text-muted);">This usually takes 5-15 seconds</span></div>';
 
   try {
-    const res = await fetch(`${API}/stores/create`, {
+    const response = await fetch(`${API_BASE}/forge`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        product_id: selectedProduct.id,
-        user_email: currentUser,
-        custom_price: price,
+        math_input: input,
+        target_lang: lang,
+        domain: domain,
+        execute: true,
       }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Erreur');
 
-    lastCreatedSlug = data.slug;
-    const url = `${window.location.origin}/s/${data.slug}`;
-    document.getElementById('successUrl').textContent = url;
-    document.getElementById('successUrl').dataset.url = url;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ detail: 'Server error' }));
+      throw new Error(err.detail || `HTTP ${response.status}`);
+    }
 
-    closeModal();
-    document.getElementById('successOverlay').classList.add('open');
-  } catch(e) {
-    alert('Erreur: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = 'Créer ma boutique →';
+    const data = await response.json();
+    displayResult(data);
+
+  } catch (err) {
+    output.innerHTML = '';
+    tag.className = 'tag tag-error';
+    tag.textContent = 'Error';
+
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'output-result error';
+    errorDiv.textContent = `Error: ${err.message}\n\nMake sure the backend is running on ${API_BASE}`;
+    output.appendChild(errorDiv);
+
+    // Show demo fallback
+    const fallback = document.createElement('div');
+    fallback.className = 'output-result info';
+    fallback.style.marginTop = '12px';
+    fallback.innerHTML = `<strong>Demo mode:</strong> Backend not connected. To see a live demo:\n\n1. cd mathforge/backend\n2. cp ../.env.example .env  (add your API key)\n3. pip install -r requirements.txt\n4. python main.py\n\nThen refresh this page.`;
+    output.appendChild(fallback);
   }
+
+  // Reset button
+  btn.disabled = false;
+  btn.innerHTML = '⚡ Forge';
+  status.innerHTML = '<div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div><span style="font-size:0.7rem;color:var(--text-muted);">Ready</span>';
 }
 
-function copyStoreUrl() {
-  const url = document.getElementById('successUrl').dataset.url;
-  navigator.clipboard.writeText(url).then(() => {
-    document.getElementById('successUrl').textContent = '✅ Copié !';
-    setTimeout(() => document.getElementById('successUrl').textContent = url, 2000);
-  });
-}
+function displayResult(data) {
+  const output = document.getElementById('outputArea');
+  const tag = document.getElementById('outputTag');
+  const copyBtn = document.getElementById('copyBtn');
 
-function closeSuccess() {
-  document.getElementById('successOverlay').classList.remove('open');
-  switchTab('stores', document.querySelectorAll('.tab')[2]);
-}
+  output.innerHTML = '';
+  output.className = '';
+  currentCode = data.code;
 
-// ---------------------------------------------------------------------------
-// USER STORES
-// ---------------------------------------------------------------------------
-async function loadUserStores() {
-  const el = document.getElementById('storesContent');
-  if (!currentUser) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏪</div><div class="empty-text">Connectez-vous pour voir vos boutiques</div></div>';
-    return;
-  }
-  el.innerHTML = '<div class="spinner"></div>';
+  // Code block
+  const codeEl = document.createElement('div');
+  codeEl.className = 'output-code';
+  codeEl.textContent = data.code;
+  output.appendChild(codeEl);
 
-  try {
-    const res = await fetch(`${API}/user/${encodeURIComponent(currentUser)}/stores`);
-    const data = await res.json();
-    const stores = data.stores || [];
-    const archived = data.archived || [];
+  // Execution result
+  if (data.execution) {
+    const exec = data.execution;
+    const resultEl = document.createElement('div');
 
-    if (!stores.length && !archived.length) {
-      el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏪</div><div class="empty-text">Aucune boutique. Créez votre première depuis le catalogue !</div></div>';
-      return;
-    }
-
-    let html = '';
-
-    // Active stores counter
-    if (stores.length) {
-      html += `<div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px">${stores.length}/${data.max_stores||10} boutiques actives</div>`;
-      html += stores.map(s => renderStoreCard(s, false)).join('');
-    }
-
-    // Archived stores section
-    if (archived.length) {
-      html += `<div style="margin-top:20px;padding-top:14px;border-top:1px solid var(--border)">
-        <div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px;cursor:pointer" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
-          📦 Historique (${archived.length} archivée${archived.length>1?'s':''}) ▾
-        </div>
-        <div style="display:none">
-          ${archived.map(s => renderStoreCard(s, true)).join('')}
-        </div>
-      </div>`;
-    }
-
-    el.innerHTML = html;
-  } catch(e) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
-  }
-}
-
-function renderStoreCard(s, isArchived) {
-  const p = s.product_data || {};
-  const active = s.active !== false && !isArchived;
-  return `
-    <div class="store-card" style="${isArchived?'opacity:0.7':''}">
-      <div class="store-header">
-        <div>
-          <div class="store-name">${s.store_name || p.name || 'Boutique'}</div>
-          <div class="store-meta">${p.name || ''} · €${parseFloat(s.seller_price||0).toFixed(2)}</div>
-        </div>
-        <span class="store-status ${isArchived?'inactive':active?'active':'inactive'}">${isArchived?'Archivée':active?'Active':'Inactive'}</span>
-      </div>
-      <div class="store-stats">
-        <div><span class="store-stat-num">${s.total_sales||0}</span><span class="store-stat-label">ventes</span></div>
-        <div><span class="store-stat-num">€${parseFloat(s.total_revenue||0).toFixed(2)}</span><span class="store-stat-label">revenus</span></div>
-      </div>
-      <div class="store-actions">
-        <button class="btn-sm primary" onclick="window.open('/s/${s.slug}','_blank')">Voir</button>
-        ${isArchived ? `
-          <button class="btn-sm" onclick="unarchiveStore('${s.slug}')">Restaurer</button>
-          <button class="btn-sm" style="color:var(--red)" onclick="deleteStore('${s.slug}')">Supprimer</button>
-        ` : `
-          <button class="btn-sm" onclick="openShareForSlug('${s.slug}')">Partager</button>
-          <button class="btn-sm" onclick="openAnalytics('${s.slug}')">Stats</button>
-          <button class="btn-sm" onclick="openContentForSlug('${s.slug}')">Contenu AI</button>
-          <button class="btn-sm" onclick="toggleStore('${s.slug}')">${active?'Désactiver':'Activer'}</button>
-          <button class="btn-sm" onclick="archiveStore('${s.slug}')">Archiver</button>
-        `}
-      </div>
-    </div>`;
-}
-
-async function toggleStore(slug) {
-  try {
-    await fetch(`${API}/stores/${slug}/toggle`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email: currentUser}),
-    });
-    loadUserStores();
-  } catch(e) {}
-}
-
-async function archiveStore(slug) {
-  if (!confirm('Archiver cette boutique ? Elle restera accessible via son lien.')) return;
-  try {
-    await fetch(`${API}/stores/${slug}/archive`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email: currentUser}),
-    });
-    loadUserStores();
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-async function unarchiveStore(slug) {
-  try {
-    const res = await fetch(`${API}/stores/${slug}/unarchive`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email: currentUser}),
-    });
-    if (!res.ok) {
-      const d = await res.json();
-      alert(d.detail || 'Erreur');
-      return;
-    }
-    loadUserStores();
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-async function deleteStore(slug) {
-  if (!confirm('⚠️ Supprimer définitivement cette boutique ?')) return;
-  if (!confirm('Cette action est irréversible. Confirmer ?')) return;
-  try {
-    await fetch(`${API}/stores/${slug}`, {
-      method: 'DELETE',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({email: currentUser}),
-    });
-    loadUserStores();
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-// ---------------------------------------------------------------------------
-// ORDERS
-// ---------------------------------------------------------------------------
-async function loadOrders() {
-  const el = document.getElementById('ordersContent');
-  if (!currentUser) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Connectez-vous pour voir vos commandes</div></div>';
-    return;
-  }
-  el.innerHTML = '<div class="spinner"></div>';
-
-  try {
-    const res = await fetch(`${API}/user/${encodeURIComponent(currentUser)}/orders`);
-    const data = await res.json();
-    const orders = data.orders || [];
-    const stats = data.stats || {};
-    if (!orders.length) {
-      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-text">Aucune commande pour le moment</div></div>';
-      return;
-    }
-
-    const statusLabels = {
-      pending:'⏳ En attente', processing:'📦 En cours', shipped:'🚚 Expédié',
-      delivered:'✅ Livré', paid:'💳 Payé', cj_failed:'⚠️ Erreur fournisseur'
-    };
-
-    let html = `<div style="color:var(--text3);font-size:0.8rem;margin-bottom:10px">
-      ${stats.total_orders||0} commandes · €${(stats.total_margin||0).toFixed(2)} de marge
-    </div>`;
-
-    html += orders.map(o => {
-      const statusClass = o.status === 'shipped' ? 'shipped' : o.status === 'delivered' ? 'delivered' : o.status === 'cj_failed' ? 'failed' : 'pending';
-      const statusLabel = statusLabels[o.status] || o.status;
-      const date = o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR') : '';
-      return `
-        <div class="order-card">
-          <div class="order-top">
-            <span class="order-id">${o.order_id}</span>
-            <span class="order-status ${statusClass}">${statusLabel}</span>
-          </div>
-          <div class="order-details">
-            ${o.product_name || 'Produit'} · ${date}
-            ${o.customer_name ? ` · ${o.customer_name}` : ''}
-            ${o.tracking_number ? `<br>🔗 Tracking: <a href="https://t.17track.net/en#nums=${o.tracking_number}" target="_blank" style="color:var(--accent)">${o.tracking_number}</a>` : ''}
-            ${o.status === 'cj_failed' ? `<br><span style="color:var(--red);font-size:0.75rem">${o.error || 'Erreur — contactez le support'}</span>` : ''}
-          </div>
-          <div class="order-amount">+€${parseFloat(o.seller_margin||0).toFixed(2)}</div>
-        </div>`;
-    }).join('');
-
-    el.innerHTML = html;
-  } catch(e) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// NETWORK
-// ---------------------------------------------------------------------------
-async function loadNetwork() {
-  const el = document.getElementById('networkContent');
-  el.innerHTML = '<div class="spinner"></div>';
-
-  try {
-    const [trending, sources, leaderboard, profile] = await Promise.all([
-      fetch(`${API}/network/trending`).then(r=>r.json()).catch(()=>[]),
-      fetch(`${API}/network/sources`).then(r=>r.json()).catch(()=>[]),
-      fetch(`${API}/network/leaderboard`).then(r=>r.json()).catch(()=>[]),
-      currentUser ? fetch(`${API}/network/profile/${encodeURIComponent(currentUser)}`).then(r=>r.json()).catch(()=>null) : null,
-    ]);
-
-    let html = '';
-
-    // Seller level
-    if (profile) {
-      html += `<div class="network-card">
-        <div class="network-card-title">🏆 Votre niveau</div>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div style="font-size:1.8rem;">${profile.level_name?.split(' ')[0] || '🌱'}</div>
-          <div>
-            <div style="font-weight:700;">${profile.level_name || 'Débutant'}</div>
-            <div style="font-size:0.78rem;color:var(--text2);">Niveau ${profile.level} · ${profile.xp} XP</div>
-            <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
-              <div style="height:100%;width:${profile.progress_pct||0}%;background:var(--accent);border-radius:2px;"></div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }
-
-    // Trending products
-    const trendItems = (trending || []).slice(0, 8);
-    if (trendItems.length) {
-      html += `<div class="network-card">
-        <div class="network-card-title">🔥 Produits tendance</div>
-        ${trendItems.map((t,i) => `
-          <div class="trend-item">
-            <span class="trend-rank">#${i+1}</span>
-            <span class="trend-name">${t.product_name}</span>
-            <span class="trend-sales">${t.sales_count} ventes</span>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    // Leaderboard
-    const leaders = (leaderboard || []).slice(0, 10);
-    if (leaders.length) {
-      html += `<div class="network-card">
-        <div class="network-card-title">🏅 Classement vendeurs</div>
-        ${leaders.map(l => `
-          <div class="trend-item">
-            <span class="trend-rank">#${l.rank}</span>
-            <span class="trend-name">${l.display_name} <span style="font-size:0.72rem;color:var(--text3);">${l.level_name}</span></span>
-            <span style="font-size:0.8rem;color:var(--accent);font-weight:700;">${l.xp} XP</span>
-          </div>
-        `).join('')}
-      </div>`;
-    }
-
-    el.innerHTML = html || '<div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Les données réseau apparaîtront après les premières ventes</div></div>';
-  } catch(e) {
-    el.innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
-  }
-}
-
-// ---------------------------------------------------------------------------
-// SELLER PAYMENTS
-// ---------------------------------------------------------------------------
-async function loadSellerBalance() {
-  if (!currentUser) return;
-  try {
-    const res = await fetch(`${API}/seller/balance/${encodeURIComponent(currentUser)}`);
-    const data = await res.json();
-    document.getElementById('sellerBalance').textContent = `€${(data.balance||0).toFixed(2)}`;
-    document.getElementById('sellerTotalEarned').textContent = `€${(data.total_earned||0).toFixed(2)}`;
-    document.getElementById('sellerTotalWithdrawn').textContent = `€${(data.total_withdrawn||0).toFixed(2)}`;
-
-    if (data.stripe_connected) {
-      document.getElementById('stripeStatus').textContent = '✅ Connecté';
-      document.getElementById('stripeStatus').style.color = 'var(--green)';
-      document.getElementById('stripeConnectBtn').textContent = 'Dashboard';
-      document.getElementById('stripeConnectBtn').onclick = openStripeDashboard;
-    }
-    if (data.paypal_email) {
-      document.getElementById('paypalEmailInput').value = data.paypal_email;
-      document.getElementById('paypalStatus').textContent = '✅ ' + data.paypal_email;
-      document.getElementById('paypalStatus').style.color = 'var(--green)';
-    }
-    loadPayoutHistory();
-  } catch(e) {}
-}
-
-async function connectStripe() {
-  if (!currentUser) return;
-  try {
-    const res = await fetch(`${API}/seller/connect-stripe`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email:currentUser}),
-    });
-    const data = await res.json();
-    if (data.onboarding_url) window.open(data.onboarding_url, '_blank');
-    else if (data.detail) alert(data.detail);
-  } catch(e) { alert('Erreur: ' + e.message); }
-}
-
-async function openStripeDashboard() {
-  try {
-    const res = await fetch(`${API}/seller/stripe-dashboard/${encodeURIComponent(currentUser)}`);
-    const data = await res.json();
-    if (data.dashboard_url) window.open(data.dashboard_url, '_blank');
-  } catch(e) {}
-}
-
-async function savePaypalEmail() {
-  const paypalEmail = document.getElementById('paypalEmailInput').value.trim();
-  if (!paypalEmail || !paypalEmail.includes('@')) { alert('Email PayPal invalide'); return; }
-  try {
-    const res = await fetch(`${API}/seller/set-paypal`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email:currentUser, paypal_email:paypalEmail}),
-    });
-    if (res.ok) {
-      document.getElementById('paypalStatus').textContent = '✅ ' + paypalEmail;
-      document.getElementById('paypalStatus').style.color = 'var(--green)';
+    if (exec.success) {
+      tag.className = 'tag tag-verified';
+      tag.textContent = `✓ Verified (${exec.duration_ms}ms)`;
+      resultEl.className = 'output-result success';
+      resultEl.textContent = `✓ Executed in ${exec.duration_ms}ms\n${exec.stdout}`;
     } else {
-      const d = await res.json();
-      alert(d.detail || 'Erreur');
+      tag.className = 'tag tag-error';
+      tag.textContent = 'Execution failed';
+      resultEl.className = 'output-result error';
+      resultEl.textContent = `✗ Error:\n${exec.stderr || exec.stdout}`;
     }
-  } catch(e) { alert('Erreur: ' + e.message); }
+    output.appendChild(resultEl);
+  }
+
+  // Explanation
+  if (data.explanation) {
+    const explEl = document.createElement('div');
+    explEl.className = 'output-explanation';
+    explEl.textContent = data.explanation;
+    output.appendChild(explEl);
+  }
+
+  copyBtn.style.display = 'block';
 }
 
-async function requestWithdrawal() {
-  if (!currentUser) return;
-  const bal = parseFloat(document.getElementById('sellerBalance').textContent.replace('€','')) || 0;
-  if (bal < 10) { alert(`Solde insuffisant (€${bal.toFixed(2)}). Minimum : €10.00`); return; }
-  const amount = prompt(`Montant à retirer (min €10, max €${bal.toFixed(2)}) :`);
-  if (!amount) return;
-  const num = parseFloat(amount);
-  if (isNaN(num) || num < 10 || num > bal) { alert('Montant invalide'); return; }
-  if (!confirm(`Confirmer le retrait de €${num.toFixed(2)} ?`)) return;
-
-  try {
-    const res = await fetch(`${API}/seller/withdraw`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({email:currentUser, amount:num}),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      alert(`✅ Retrait de €${num.toFixed(2)} effectué via ${data.method}`);
-      loadSellerBalance();
-    } else { alert(data.detail || 'Erreur'); }
-  } catch(e) { alert('Erreur: ' + e.message); }
+function copyCode() {
+  if (currentCode) {
+    navigator.clipboard.writeText(currentCode);
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = 'Copy code'; }, 2000);
+  }
 }
 
-async function loadPayoutHistory() {
-  try {
-    const res = await fetch(`${API}/seller/payouts/${encodeURIComponent(currentUser)}`);
-    const data = await res.json();
-    const payouts = data.payouts || [];
-    const el = document.getElementById('payoutHistory');
-    if (!payouts.length) { el.textContent = 'Aucun retrait pour le moment'; return; }
-    el.innerHTML = payouts.slice(0,10).map(p => {
-      const date = new Date(p.created_at).toLocaleDateString('fr-FR');
-      const icon = p.status==='completed'?'✅':p.status==='failed'?'❌':'⏳';
-      return `<div class="payout-item"><span>${icon} €${parseFloat(p.amount).toFixed(2)} · ${p.method}</span><span style="color:var(--text3)">${date}</span></div>`;
-    }).join('');
-  } catch(e) {}
+function joinWaitlist() {
+  const email = document.getElementById('emailInput').value;
+  if (email && email.includes('@')) {
+    const count = document.getElementById('waitlistCount');
+    count.textContent = parseInt(count.textContent) + 1;
+    document.getElementById('emailInput').value = '';
+    document.getElementById('emailInput').placeholder = "✓ You're in! Check your inbox.";
+    document.getElementById('emailInput').style.borderColor = 'var(--green)';
+    // TODO: POST to backend /waitlist endpoint
+  }
 }
 
-// ---------------------------------------------------------------------------
-// SHARE
-// ---------------------------------------------------------------------------
-function shareStore() {
-  if (lastCreatedSlug) openShareForSlug(lastCreatedSlug);
-}
-
-async function openShareForSlug(slug) {
-  try {
-    const res = await fetch(`${API}/share/${slug}`);
-    const data = await res.json();
-    const url = data.copy_link || `${window.location.origin}/s/${slug}`;
-    const p = data.platforms || {};
-
-    document.getElementById('shareUrl').textContent = url;
-    document.getElementById('shareUrl').dataset.url = url;
-
-    document.getElementById('sharePlatforms').innerHTML = `
-      <button class="share-btn" onclick="window.open('${p.whatsapp?.share_url||''}','_blank')">💬 WhatsApp</button>
-      <button class="share-btn" onclick="window.open('${p.facebook?.share_url||''}','_blank')">📘 Facebook</button>
-      <button class="share-btn" onclick="copyShareLink()">📋 Copier le lien</button>
-      <button class="share-btn" onclick="openContentForSlug('${slug}');closeShare();">🤖 Contenu AI</button>
-    `;
-    document.getElementById('shareModal').classList.add('open');
-  } catch(e) {}
-}
-
-function closeShare() { document.getElementById('shareModal').classList.remove('open'); }
-
-function copyShareLink() {
-  const url = document.getElementById('shareUrl').dataset.url;
-  navigator.clipboard.writeText(url).then(() => {
-    document.getElementById('shareUrl').textContent = '✅ Copié !';
-    setTimeout(() => document.getElementById('shareUrl').textContent = url, 2000);
+// Smooth scroll
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth' });
   });
-}
-
-// ---------------------------------------------------------------------------
-// CONTENT AI
-// ---------------------------------------------------------------------------
-let currentContentSlug = '';
-
-async function openContentForSlug(slug) {
-  currentContentSlug = slug;
-  const platforms = ['tiktok','instagram','facebook','snapchat'];
-  document.getElementById('contentTabs').innerHTML = platforms.map((p,i) =>
-    `<button class="content-tab ${i===0?'active':''}" onclick="loadContent('${slug}','${p}',this)">${{tiktok:'🎵 TikTok',instagram:'📸 Instagram',facebook:'📘 Facebook',snapchat:'👻 Snapchat'}[p]}</button>`
-  ).join('');
-  document.getElementById('contentResult').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('contentModal').classList.add('open');
-  loadContent(slug, 'tiktok');
-}
-
-async function loadContent(slug, platform, btn) {
-  if (btn) {
-    document.querySelectorAll('.content-tab').forEach(t=>t.classList.remove('active'));
-    btn.classList.add('active');
-  }
-  document.getElementById('contentResult').innerHTML = '<div class="spinner"></div>';
-  try {
-    const res = await fetch(`${API}/content/${slug}/${platform}`);
-    const data = await res.json();
-    const text = data.script || data.caption || data.content || JSON.stringify(data, null, 2);
-    document.getElementById('contentResult').innerHTML = `
-      <div class="content-result">${text.replace(/\n/g,'<br>')}</div>
-      <button class="btn-copy" onclick="navigator.clipboard.writeText(\`${text.replace(/`/g,'\\`').replace(/\\/g,'\\\\')}\`);this.textContent='✅ Copié !';">📋 Copier</button>
-    `;
-  } catch(e) {
-    document.getElementById('contentResult').innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de génération</div></div>';
-  }
-}
-
-function closeContent() { document.getElementById('contentModal').classList.remove('open'); }
-
-// ---------------------------------------------------------------------------
-// ANALYTICS
-// ---------------------------------------------------------------------------
-async function openAnalytics(slug) {
-  document.getElementById('analyticsContent').innerHTML = '<div class="spinner"></div>';
-  document.getElementById('analyticsModal').classList.add('open');
-
-  try {
-    const res = await fetch(`${API}/analytics/${slug}?period=7d`);
-    const data = await res.json();
-    document.getElementById('analyticsContent').innerHTML = `
-      <div class="analytics-grid">
-        <div class="analytics-card">
-          <div class="analytics-value">${data.total_views||0}</div>
-          <div class="analytics-label">Vues (7j)</div>
-        </div>
-        <div class="analytics-card">
-          <div class="analytics-value">${data.total_conversions||0}</div>
-          <div class="analytics-label">Conversions</div>
-        </div>
-        <div class="analytics-card">
-          <div class="analytics-value">€${(data.total_revenue||0).toFixed(2)}</div>
-          <div class="analytics-label">Revenus</div>
-        </div>
-        <div class="analytics-card">
-          <div class="analytics-value">${(data.conversion_rate||0).toFixed(1)}%</div>
-          <div class="analytics-label">Taux conv.</div>
-        </div>
-      </div>
-      <div class="network-card" style="margin:0;">
-        <div class="network-card-title">Sources de trafic</div>
-        ${Object.entries(data.sources||{}).map(([s,v]) =>
-          `<div class="trend-item"><span class="trend-name">${s}</span><span style="font-weight:700;">${v}</span></div>`
-        ).join('') || '<div style="font-size:0.82rem;color:var(--text3);">Aucune donnée</div>'}
-      </div>
-    `;
-  } catch(e) {
-    document.getElementById('analyticsContent').innerHTML = '<div class="empty-state"><div class="empty-text">Erreur de chargement</div></div>';
-  }
-}
-
-function closeAnalytics() { document.getElementById('analyticsModal').classList.remove('open'); }
-
-// ---------------------------------------------------------------------------
-// CLICK OUTSIDE TO CLOSE MODALS
-// ---------------------------------------------------------------------------
-document.addEventListener('click', (e) => {
-  if (e.target.classList.contains('modal-overlay')) {
-    e.target.classList.remove('open');
-  }
 });
 
-// ---------------------------------------------------------------------------
-// START
-// ---------------------------------------------------------------------------
-init();
+// Keyboard shortcut: Ctrl+Enter to forge
+document.getElementById('mathInput').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') forge();
+});
 </script>
+
 </body>
 </html>
