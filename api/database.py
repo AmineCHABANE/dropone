@@ -287,7 +287,8 @@ def get_store_orders(slug: str) -> list[dict]:
 
 def get_all_orders_for_user(email: str) -> list[dict]:
     try:
-        stores = get_user_stores(email)
+        # Include ALL stores (active + archived + deleted) to never lose order history
+        stores = _get("stores", {"owner_email": f"eq.{email}", "select": "slug"})
         slugs = [s["slug"] for s in stores]
         if not slugs:
             return []

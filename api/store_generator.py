@@ -321,7 +321,7 @@ h1{{font-size:1.5rem;font-weight:800;margin-bottom:8px}}
       <div class="email-note">📧 Tracking info will be sent to your email</div>
     </div>
   </div>
-  <a href="/" class="btn">Continue Shopping</a>
+  <a href="/s/{store.get('slug', '')}" class="btn">Continue Shopping</a>
 </div>
 </body>
 </html>"""

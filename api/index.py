@@ -258,7 +258,9 @@ async def catalog_stats():
 
 @app.post("/api/catalog/sync")
 async def force_catalog_sync():
-    """Force re-sync catalog from CJ (admin use)."""
+    """Force re-sync catalog from CJ (admin use — rate limited)."""
+    if not _check_rate_limit("catalog-sync", max_req=1, window=300):
+        raise HTTPException(429, "Catalog sync already in progress. Wait 5 minutes.")
     await catalog_mod.sync_catalog()
     return catalog_mod.get_catalog_stats()
 
@@ -374,7 +376,7 @@ async def store_page(slug: str, request: Request):
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if not store.get("active", True):
+    if not store.get("active", True) or store.get("store_status") == "deleted":
         raise HTTPException(404, "Store is currently offline")
 
     ip = request.headers.get("x-forwarded-for", request.headers.get("x-real-ip", ""))
@@ -494,6 +496,9 @@ async def create_checkout(req: CheckoutRequest):
                 "application_fee_amount": platform_fee,
                 "transfer_data": {"destination": stripe_account_id},
             }
+            session_params["metadata"]["is_destination_charge"] = "true"
+        else:
+            session_params["metadata"]["is_destination_charge"] = "false"
 
         session = stripe.checkout.Session.create(**session_params)
         return {"checkout_url": session.url, "session_id": session.id, "provider": "stripe"}
@@ -692,6 +697,7 @@ async def stripe_webhook(request: Request):
                 seller_margin=float(meta.get("seller_margin", 0)),
                 payment_provider="stripe",
                 payment_id=session.get("id", ""),
+                is_destination_charge=meta.get("is_destination_charge") == "true",
             )
 
     return {"received": True}
@@ -702,7 +708,8 @@ async def stripe_webhook(request: Request):
 # ---------------------------------------------------------------------------
 async def _process_completed_order(store, customer_email, customer_name,
                                     shipping_address, amount_paid, supplier_cost,
-                                    commission, seller_margin, payment_provider, payment_id):
+                                    commission, seller_margin, payment_provider, payment_id,
+                                    **kwargs):
     order_id = f"DO-{uuid.uuid4().hex[:8].upper()}"
     product = store.get("product_data", store.get("product", {}))
     product_id = store.get("product_id", product.get("id", ""))
@@ -726,11 +733,10 @@ async def _process_completed_order(store, customer_email, customer_name,
 
     # Update seller earnings — but only add to withdrawable balance if
     # the seller was NOT already paid via Stripe Connect destination charge.
-    # With destination charges, Stripe splits the payment automatically,
-    # so the seller already has the money. Adding to balance would = double payment.
-    seller = db.get_user(store["owner_email"])
-    stripe_account_id = seller.get("stripe_account_id") if seller else None
-    already_paid_directly = (payment_provider == "stripe" and bool(stripe_account_id))
+    # CRITICAL: We check the checkout metadata (set at payment time), NOT the
+    # current seller state, to avoid timing bugs if seller adds/removes Connect
+    # between checkout and webhook.
+    already_paid_directly = kwargs.get("is_destination_charge", False)
 
     if already_paid_directly:
         # Seller got paid via Stripe destination charge — track earnings but NOT balance
@@ -1045,6 +1051,14 @@ async def create_multi_store(request: Request):
     col = get_collection(collection_id)
     if not col:
         raise HTTPException(404, "Collection not found")
+
+    # Check store limit BEFORE creating
+    active_count = db.count_active_stores(user_email)
+    products_count = len(col.get("products", []))
+    if active_count + products_count > 10:
+        raise HTTPException(400,
+            f"Maximum 10 boutiques actives. Vous en avez {active_count}, "
+            f"cette collection en ajoute {products_count}. Archivez-en d'abord.")
 
     db.get_or_create_user(user_email)
     created = []
