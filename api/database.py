@@ -175,47 +175,12 @@ def slug_exists(slug: str) -> bool:
         return False
 
 
-def get_user_stores(email: str, status: str = None) -> list[dict]:
-    """Get user stores, optionally filtered by store_status."""
+def get_user_stores(email: str) -> list[dict]:
     try:
-        params = {"owner_email": f"eq.{email}", "select": "*", "order": "created_at.desc"}
-        if status:
-            params["store_status"] = f"eq.{status}"
-        else:
-            # By default exclude deleted
-            params["store_status"] = "neq.deleted"
-        return _get("stores", params)
+        return _get("stores", {"owner_email": f"eq.{email}", "select": "*", "order": "created_at.desc"})
     except Exception as e:
         logger.error(f"get_user_stores: {e}")
         return []
-
-
-def count_active_stores(email: str) -> int:
-    """Count active (non-archived, non-deleted) stores for a user."""
-    try:
-        rows = _get("stores", {
-            "owner_email": f"eq.{email}",
-            "store_status": "eq.active",
-            "select": "slug",
-        })
-        return len(rows)
-    except Exception:
-        return 0
-
-
-def archive_store(slug: str):
-    """Archive a store — still accessible via URL, hidden from dashboard."""
-    update_store(slug, {"store_status": "archived", "active": False})
-
-
-def unarchive_store(slug: str):
-    """Restore an archived store."""
-    update_store(slug, {"store_status": "active", "active": True})
-
-
-def soft_delete_store(slug: str):
-    """Soft delete — inaccessible but recoverable."""
-    update_store(slug, {"store_status": "deleted", "active": False})
 
 
 def update_store(slug: str, updates: dict):
@@ -290,32 +255,6 @@ def update_order(order_id: str, updates: dict):
         _patch("orders", {"order_id": f"eq.{order_id}"}, updates)
     except Exception as e:
         logger.error(f"update_order: {e}")
-
-
-def update_order_supplier(order_id: str, supplier_order_id: str):
-    """Store the CJ order ID and mark as processing."""
-    update_order(order_id, {
-        "supplier_order_id": supplier_order_id,
-        "status": "processing",
-    })
-
-
-def update_order_status(order_id: str, status: str, error: str = ""):
-    """Update order status with optional error message."""
-    updates = {"status": status}
-    if error:
-        updates["error"] = error
-    update_order(order_id, updates)
-
-
-def get_order_by_supplier_id(supplier_order_id: str) -> Optional[dict]:
-    """Find order by CJ supplier order ID."""
-    try:
-        rows = _get("orders", {"supplier_order_id": f"eq.{supplier_order_id}", "select": "*"})
-        return rows[0] if rows else None
-    except Exception as e:
-        logger.error(f"get_order_by_supplier_id: {e}")
-        return None
 
 
 def get_order_stats(email: str) -> dict:
