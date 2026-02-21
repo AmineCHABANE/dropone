@@ -16,7 +16,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, field_validator
 import stripe
 from openai import OpenAI
@@ -54,7 +55,7 @@ logger = logging.getLogger("dropone")
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="DropOne API", version="2.1.0")
+app = FastAPI(title="DropOne API", version="5.0.0")
 ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*").split(",")
 app.add_middleware(
     CORSMiddleware,
@@ -136,7 +137,7 @@ async def serve_app():
 async def health():
     return {
         "status": "ok",
-        "version": "2.1.0",
+        "version": "5.0.0",
         "services": {
             "ai": bool(ai_client),
             "stripe": bool(STRIPE_SECRET_KEY),
@@ -649,6 +650,54 @@ async def _process_completed_order(store, customer_email, customer_name,
 
     logger.info(f"Order {order_id} via {payment_provider}: €{amount_paid}")
 
+    # --- AUTO-FULFILLMENT: place order on CJ ---
+    try:
+        product = store.get("product_data", store.get("product", {}))
+        vid = product.get("cj_vid") or ""
+        cj_pid = product.get("cj_pid") or ""
+
+        # If no vid, try to get it from CJ product detail
+        if not vid and cj_pid:
+            detail = await cj_client.get_product(cj_pid)
+            if detail and detail.get("variants"):
+                vid = detail["variants"][0].get("vid", "")
+
+        if vid and isinstance(shipping_address, dict) and shipping_address.get("country"):
+            cj_result = await cj_client.place_order(
+                vid=vid,
+                quantity=1,
+                name=customer_name or "Client",
+                phone=shipping_address.get("phone", ""),
+                country_code=shipping_address.get("country", "FR"),
+                province=shipping_address.get("state", ""),
+                city=shipping_address.get("city", ""),
+                address=shipping_address.get("line1", "") + " " + shipping_address.get("line2", ""),
+                zip_code=shipping_address.get("postal_code", ""),
+                our_order_id=order_id,
+            )
+            if cj_result.get("success"):
+                cj_oid = cj_result.get("cj_order_id", "")
+                db.update_order(order_id, {
+                    "supplier_order_id": cj_oid,
+                    "status": "processing",
+                })
+                logger.info(f"CJ auto-fulfillment OK: {order_id} -> {cj_oid}")
+                # Confirm/pay the CJ order
+                try:
+                    await cj_client.confirm_order(cj_oid)
+                    logger.info(f"CJ order confirmed: {cj_oid}")
+                except Exception as e2:
+                    logger.warning(f"CJ confirm failed (manual needed): {e2}")
+            else:
+                logger.warning(f"CJ auto-fulfillment failed for {order_id}: {cj_result.get('error')}")
+                db.update_order(order_id, {"status": "pending_fulfillment"})
+        else:
+            logger.warning(f"Cannot auto-fulfill {order_id}: missing vid or shipping address")
+            db.update_order(order_id, {"status": "pending_fulfillment"})
+    except Exception as e:
+        logger.error(f"Auto-fulfillment error for {order_id}: {e}")
+        db.update_order(order_id, {"status": "pending_fulfillment"})
+
 
 # ---------------------------------------------------------------------------
 # Webhook — CJ — FIX #16: actually process tracking
@@ -963,6 +1012,24 @@ async def get_share_content(slug: str):
         },
         "copy_link": url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Custom 404 page
+# ---------------------------------------------------------------------------
+@app.exception_handler(StarletteHTTPException)
+async def custom_404(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404 and "text/html" in request.headers.get("accept", ""):
+        return HTMLResponse(content="""<!DOCTYPE html>
+<html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Page introuvable — DropOne</title>
+<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#0c0f1a;color:#e8eaf0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.c{text-align:center;max-width:400px}.e{font-size:4rem;margin-bottom:16px}h1{font-size:1.5rem;font-weight:800;margin-bottom:8px}.s{color:#8b92ab;font-size:.9rem;margin-bottom:24px}
+.b{display:inline-block;padding:12px 28px;background:#6366f1;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:.9rem}</style>
+</head><body><div class="c"><div class="e">🔍</div><h1>Page introuvable</h1>
+<p class="s">Cette page n'existe pas ou a été supprimée.</p>
+<a href="/" class="b">Retour à l'accueil</a></div></body></html>""", status_code=404)
+    return JSONResponse(content={"detail": exc.detail}, status_code=exc.status_code)
 
 
 # ---------------------------------------------------------------------------

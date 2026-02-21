@@ -26,33 +26,33 @@ CACHE_TTL = 7 * 24 * 3600   # 7 days (weekly sync)
 MARGIN_MULTIPLIER = 2.5      # 60% margin
 MIN_MARGIN_MULTIPLIER = 2.0
 MAX_PRICE = 99.99
-PRODUCTS_PER_QUERY = 20
-CONCURRENT_BATCH = 24        # All queries at once
+PRODUCTS_PER_QUERY = 10
+CONCURRENT_BATCH = 24        # All queries at once (16 max with 2 per cat)
 
 # ---------------------------------------------------------------------------
 # QUERY ROTATION — Set A / Set B alternate every 2 weeks
 # Keeps the catalog fresh without losing best-sellers
 # ---------------------------------------------------------------------------
 CATEGORY_QUERIES_A = {
-    "tech": ["wireless earbuds bluetooth speaker"],
-    "beauty": ["face massager roller skincare"],
-    "home": ["LED projector lamp diffuser"],
-    "fitness": ["massage gun resistance bands"],
-    "kitchen": ["portable blender frother kitchen"],
-    "pet": ["pet brush hair remover dog"],
-    "fashion": ["sunglasses bag crossbody"],
-    "auto": ["car vacuum dash cam LED"],
+    "tech": ["earbuds wireless", "phone accessories"],
+    "beauty": ["face massager", "skincare tool"],
+    "home": ["LED lamp", "home decor"],
+    "fitness": ["massage gun", "fitness accessories"],
+    "kitchen": ["kitchen gadget", "portable blender"],
+    "pet": ["pet grooming", "dog accessories"],
+    "fashion": ["sunglasses women", "crossbody bag"],
+    "auto": ["car accessories", "car LED"],
 }
 
 CATEGORY_QUERIES_B = {
-    "tech": ["smart watch TWS headphones charger"],
-    "beauty": ["LED face mask serum derma roller"],
-    "home": ["moon lamp humidifier organizer"],
-    "fitness": ["yoga mat jump rope posture corrector"],
-    "kitchen": ["egg cooker spice grinder electric"],
-    "pet": ["cat toy automatic feeder collar"],
-    "fashion": ["minimalist watch tote bag jewelry"],
-    "auto": ["car phone mount LED strip interior"],
+    "tech": ["smart watch", "bluetooth speaker"],
+    "beauty": ["LED face mask", "hair accessories"],
+    "home": ["moon lamp", "humidifier"],
+    "fitness": ["yoga accessories", "resistance bands"],
+    "kitchen": ["egg cooker", "electric grinder"],
+    "pet": ["cat toy", "pet feeder"],
+    "fashion": ["minimalist watch", "tote bag"],
+    "auto": ["car phone mount", "dash cam"],
 }
 
 
