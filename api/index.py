@@ -1524,3 +1524,24 @@ async def cj_order_tracking(order_id: str):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
+
+# ---------------------------------------------------------------------------
+# Cron — Weekly Catalog Sync (called by cron-job.org)
+# ---------------------------------------------------------------------------
+CRON_SECRET = os.getenv("CRON_SECRET", "")
+
+
+@app.post("/api/cron/catalog-sync")
+async def cron_catalog_sync(request: Request):
+    auth = request.headers.get("authorization", "")
+    if not CRON_SECRET:
+        raise HTTPException(500, "CRON_SECRET not configured")
+    if auth != f"Bearer {CRON_SECRET}":
+        raise HTTPException(401, "Invalid cron token")
+    try:
+        stats = await catalog_mod.weekly_sync()
+        return stats
+    except Exception as e:
+        logger.error(f"Cron catalog sync failed: {e}")
+        raise HTTPException(500, f"Sync failed: {e}")
