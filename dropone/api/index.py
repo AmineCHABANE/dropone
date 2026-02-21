@@ -1,3 +1,5 @@
+import sys, os as _os
+sys.path.insert(0, _os.path.dirname(__file__))
 """
 DropOne — Production Backend API v2
 FastAPI + Supabase + OpenAI + Stripe + PayPal
@@ -27,8 +29,8 @@ from catalog import get_product, get_trending, search_products, get_categories, 
 from store_generator import generate_store, generate_store_page, generate_success_page
 from content_ai import generate_content, calculate_ad_budget
 from multi_store import get_collections, get_collection, suggest_upsells, generate_collection_with_ai
-from notifications import PushManager
 import cj_client
+from notifications import PushManager
 
 # ---------------------------------------------------------------------------
 # Config
@@ -77,6 +79,45 @@ def _check_rate_limit(key: str, max_req: int = 5, window: int = 60) -> bool:
         return False
     _rate_limits[key].append(now)
     return True
+
+
+# ---------------------------------------------------------------------------
+# Auth helper — validates ownership on sensitive endpoints
+# ---------------------------------------------------------------------------
+def _require_owner(email: str, store: dict):
+    """Raise 403 if email is missing or doesn't match store owner."""
+    if not email:
+        raise HTTPException(401, "Authentication required")
+    if store.get("owner_email") != email.lower().strip():
+        raise HTTPException(403, "Not your store")
+
+
+def _require_user(email: str):
+    """Raise 401 if email is empty."""
+    if not email or not EMAIL_RE.match(email):
+        raise HTTPException(401, "Valid email required")
+    return email.lower().strip()
+
+
+# ---------------------------------------------------------------------------
+# Webhook idempotency — prevent double order processing
+# ---------------------------------------------------------------------------
+_processed_payments: dict[str, float] = {}
+
+def _is_duplicate_payment(payment_id: str) -> bool:
+    """Returns True if this payment was already processed (within 1h window)."""
+    if not payment_id:
+        return False
+    now = time.time()
+    # Cleanup old entries
+    for k in list(_processed_payments):
+        if now - _processed_payments[k] > 3600:
+            del _processed_payments[k]
+    if payment_id in _processed_payments:
+        logger.warning(f"Duplicate payment detected: {payment_id}")
+        return True
+    _processed_payments[payment_id] = now
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +177,7 @@ async def serve_app():
 async def health():
     return {
         "status": "ok",
-        "version": "2.1.0",
+        "version": "3.0.0",
         "services": {
             "ai": bool(ai_client),
             "stripe": bool(STRIPE_SECRET_KEY),
@@ -146,6 +187,38 @@ async def health():
             "push": bool(os.getenv("VAPID_PUBLIC_KEY")),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Public Config (safe to expose)
+# ---------------------------------------------------------------------------
+@app.get("/api/config")
+async def get_config():
+    """Return public-safe config for the frontend."""
+    await catalog_mod.ensure_catalog()
+    products = catalog_mod._get_products()
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL", ""),
+        "supabase_anon_key": os.getenv("SUPABASE_ANON_KEY", ""),
+        "app_url": APP_URL,
+        "google_auth_enabled": bool(os.getenv("SUPABASE_ANON_KEY")),
+        "categories": sorted(set(p["category"] for p in products)),
+        "total_products": len(products),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Auth — Email registration
+# ---------------------------------------------------------------------------
+@app.post("/api/auth/register")
+async def register_user(request: Request):
+    """Register or get-or-create a user by email (for email login)."""
+    body = await request.json()
+    email = body.get("email", "").lower().strip()
+    if not email or not EMAIL_RE.match(email):
+        raise HTTPException(400, "Valid email required")
+    user = db.get_or_create_user(email)
+    return {"email": user.get("email", email), "registered": True}
 
 
 # ---------------------------------------------------------------------------
@@ -185,39 +258,11 @@ async def catalog_stats():
 
 @app.post("/api/catalog/sync")
 async def force_catalog_sync():
-    """Force re-sync catalog from CJ (admin use)."""
+    """Force re-sync catalog from CJ (admin use — rate limited)."""
+    if not _check_rate_limit("catalog-sync", max_req=1, window=300):
+        raise HTTPException(429, "Catalog sync already in progress. Wait 5 minutes.")
     await catalog_mod.sync_catalog()
     return catalog_mod.get_catalog_stats()
-
-
-# ---------------------------------------------------------------------------
-# Cron — Weekly Catalog Sync (called by cron-job.org)
-# ---------------------------------------------------------------------------
-CRON_SECRET = os.getenv("CRON_SECRET", "")
-
-
-@app.post("/api/cron/catalog-sync")
-async def cron_catalog_sync(request: Request):
-    """Weekly catalog sync: rotate queries + fetch + cleanup dead products.
-
-    Protected by Bearer token. Configure on cron-job.org:
-    - URL: POST https://dropone.vercel.app/api/cron/catalog-sync
-    - Header: Authorization: Bearer YOUR_CRON_SECRET
-    - Schedule: 0 4 * * 0  (every Sunday at 4 AM UTC = 6 AM Paris)
-    """
-    # Auth check
-    auth = request.headers.get("authorization", "")
-    if not CRON_SECRET:
-        raise HTTPException(500, "CRON_SECRET not configured")
-    if auth != f"Bearer {CRON_SECRET}":
-        raise HTTPException(401, "Invalid cron token")
-
-    try:
-        stats = await catalog_mod.weekly_sync()
-        return stats
-    except Exception as e:
-        logger.error(f"Cron catalog sync failed: {e}")
-        raise HTTPException(500, f"Sync failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -227,6 +272,10 @@ async def cron_catalog_sync(request: Request):
 async def create_store_endpoint(req: CreateStoreRequest):
     if not _check_rate_limit(f"create:{req.user_email}", max_req=5, window=60):
         raise HTTPException(429, "Trop de boutiques créées. Attends une minute.")
+
+    # Check active store limit
+    if db.count_active_stores(req.user_email) >= 10:
+        raise HTTPException(400, "Maximum 10 boutiques actives. Archivez-en une d'abord.")
 
     await catalog_mod.ensure_catalog()
     product = get_product(req.product_id)
@@ -296,12 +345,19 @@ async def get_store_orders(slug: str):
 
 
 @app.get("/api/user/{email}/stores")
-async def get_user_stores(email: str):
+async def get_user_stores(email: str, status: str = None):
     user = db.get_user(email)
     if not user:
-        return {"stores": [], "total_earnings": 0}
-    stores = db.get_user_stores(email)
-    return {"stores": stores, "total_earnings": round(float(user.get("total_earnings") or 0), 2)}
+        return {"stores": [], "archived": [], "total_earnings": 0, "active_count": 0, "max_stores": 10}
+    stores = db.get_user_stores(email, status="active")
+    archived = db.get_user_stores(email, status="archived")
+    return {
+        "stores": stores,
+        "archived": archived,
+        "total_earnings": round(float(user.get("total_earnings") or 0), 2),
+        "active_count": len(stores),
+        "max_stores": 10,
+    }
 
 
 # FIX #14: single endpoint for all user orders (frontend was doing N requests)
@@ -320,7 +376,7 @@ async def store_page(slug: str, request: Request):
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if not store.get("active", True):
+    if not store.get("active", True) or store.get("store_status") == "deleted":
         raise HTTPException(404, "Store is currently offline")
 
     ip = request.headers.get("x-forwarded-for", request.headers.get("x-real-ip", ""))
@@ -366,6 +422,9 @@ async def store_success(slug: str, request: Request):
 # ---------------------------------------------------------------------------
 @app.post("/api/checkout/create")
 async def create_checkout(req: CheckoutRequest):
+    if not _check_rate_limit(f"checkout:{req.store_slug}", max_req=10, window=60):
+        raise HTTPException(429, "Trop de tentatives. Réessayez dans une minute.")
+
     store = db.get_store(req.store_slug)
     if not store:
         raise HTTPException(404, "Store not found")
@@ -382,9 +441,22 @@ async def create_checkout(req: CheckoutRequest):
         raise HTTPException(500, "Stripe not configured")
 
     try:
-        session = stripe.checkout.Session.create(
-            mode="payment",
-            line_items=[{
+        # Check if seller has Stripe Connect account AND it's fully verified
+        seller = db.get_user(store.get("owner_email", ""))
+        stripe_account_id = None
+        if seller and seller.get("stripe_account_id"):
+            try:
+                acct = stripe.Account.retrieve(seller["stripe_account_id"])
+                if acct.charges_enabled and acct.payouts_enabled:
+                    stripe_account_id = seller["stripe_account_id"]
+                else:
+                    logger.info(f"Stripe Connect for {store.get('owner_email')} not fully verified, skipping destination charge")
+            except stripe.StripeError:
+                pass
+
+        session_params = {
+            "mode": "payment",
+            "line_items": [{
                 "price_data": {
                     "currency": "eur",
                     "product_data": {
@@ -396,16 +468,16 @@ async def create_checkout(req: CheckoutRequest):
                 },
                 "quantity": 1,
             }],
-            shipping_address_collection={
+            "shipping_address_collection": {
                 "allowed_countries": [
                     "FR","BE","CH","DE","ES","IT","NL","GB","US","CA",
                     "PT","AT","IE","LU","SE","DK","NO","FI","PL",
                 ],
             },
-            customer_email=req.customer_email or None,
-            success_url=f"{APP_URL}/s/{req.store_slug}/success?session_id={{CHECKOUT_SESSION_ID}}",
-            cancel_url=f"{APP_URL}/s/{req.store_slug}",
-            metadata={
+            "customer_email": req.customer_email or None,
+            "success_url": f"{APP_URL}/s/{req.store_slug}/success?session_id={{CHECKOUT_SESSION_ID}}",
+            "cancel_url": f"{APP_URL}/s/{req.store_slug}",
+            "metadata": {
                 "store_slug": req.store_slug,
                 "store_id": store["store_id"],
                 "product_id": store.get("product_id", ""),
@@ -413,7 +485,22 @@ async def create_checkout(req: CheckoutRequest):
                 "commission": str(store["commission"]),
                 "seller_margin": str(store["margin"]),
             },
-        )
+        }
+
+        # If seller has Stripe Connect → direct payout via destination charge
+        if stripe_account_id:
+            commission_cents = int(float(store["commission"]) * 100)
+            supplier_cents = int(float(store["supplier_cost"]) * 100)
+            platform_fee = commission_cents + supplier_cents  # DropOne keeps commission + supplier cost
+            session_params["payment_intent_data"] = {
+                "application_fee_amount": platform_fee,
+                "transfer_data": {"destination": stripe_account_id},
+            }
+            session_params["metadata"]["is_destination_charge"] = "true"
+        else:
+            session_params["metadata"]["is_destination_charge"] = "false"
+
+        session = stripe.checkout.Session.create(**session_params)
         return {"checkout_url": session.url, "session_id": session.id, "provider": "stripe"}
     except stripe.StripeError as e:
         raise HTTPException(400, str(e))
@@ -486,6 +573,11 @@ async def _create_paypal_order(store: dict, product: dict, req: CheckoutRequest)
 
 async def _capture_paypal(paypal_order_id: str, store: dict):
     """Capture PayPal payment and process order."""
+    # Idempotency — prevent double processing
+    if _is_duplicate_payment(f"pp-{paypal_order_id}"):
+        logger.info(f"PayPal {paypal_order_id} already processed, skipping")
+        return
+
     import httpx
     token = await _get_paypal_token()
     async with httpx.AsyncClient(timeout=15) as client:
@@ -516,11 +608,16 @@ async def _capture_paypal(paypal_order_id: str, store: dict):
     payer = data.get("payer", {})
     amount = float(capture.get("amount", {}).get("value", 0))
 
+    # PayPal shipping is in purchase_units, NOT in payer
+    shipping_info = unit.get("shipping", {})
+    shipping_address = shipping_info.get("address", {})
+    shipping_name = shipping_info.get("name", {}).get("full_name", payer.get("name", {}).get("given_name", ""))
+
     await _process_completed_order(
         store=store,
         customer_email=payer.get("email_address", ""),
-        customer_name=payer.get("name", {}).get("given_name", ""),
-        shipping_address=payer.get("address", {}),
+        customer_name=shipping_name,
+        shipping_address=shipping_address,
         amount_paid=amount,
         supplier_cost=supplier_cost,
         commission=commission,
@@ -578,6 +675,12 @@ async def stripe_webhook(request: Request):
 
     if event.get("type") == "checkout.session.completed":
         session = event["data"]["object"]
+        payment_id = session.get("id", "")
+
+        # Idempotency — prevent double processing
+        if _is_duplicate_payment(payment_id):
+            return {"received": True, "status": "already_processed"}
+
         meta = session.get("metadata", {})
         slug = meta.get("store_slug", "")
         store = db.get_store(slug)
@@ -594,6 +697,7 @@ async def stripe_webhook(request: Request):
                 seller_margin=float(meta.get("seller_margin", 0)),
                 payment_provider="stripe",
                 payment_id=session.get("id", ""),
+                is_destination_charge=meta.get("is_destination_charge") == "true",
             )
 
     return {"received": True}
@@ -604,13 +708,16 @@ async def stripe_webhook(request: Request):
 # ---------------------------------------------------------------------------
 async def _process_completed_order(store, customer_email, customer_name,
                                     shipping_address, amount_paid, supplier_cost,
-                                    commission, seller_margin, payment_provider, payment_id):
+                                    commission, seller_margin, payment_provider, payment_id,
+                                    **kwargs):
     order_id = f"DO-{uuid.uuid4().hex[:8].upper()}"
     product = store.get("product_data", store.get("product", {}))
+    product_id = store.get("product_id", product.get("id", ""))
 
+    # Save order in database
     db.create_order({
         "order_id": order_id, "store_slug": store["slug"],
-        "product_id": store.get("product_id", product.get("id", "")),
+        "product_id": product_id,
         "product_name": product.get("name", "Produit"),
         "customer_email": customer_email, "customer_name": customer_name,
         "shipping_address": shipping_address, "amount_paid": amount_paid,
@@ -622,11 +729,26 @@ async def _process_completed_order(store, customer_email, customer_name,
     })
 
     db.increment_store_sales(store["slug"], seller_margin)
-    db.update_user_earnings(store["owner_email"], seller_margin)
     db.track_conversion(store["slug"], order_id, amount_paid)
 
+    # Update seller earnings — but only add to withdrawable balance if
+    # the seller was NOT already paid via Stripe Connect destination charge.
+    # CRITICAL: We check the checkout metadata (set at payment time), NOT the
+    # current seller state, to avoid timing bugs if seller adds/removes Connect
+    # between checkout and webhook.
+    already_paid_directly = kwargs.get("is_destination_charge", False)
+
+    if already_paid_directly:
+        # Seller got paid via Stripe destination charge — track earnings but NOT balance
+        db.update_user_earnings_no_balance(store["owner_email"], seller_margin)
+        logger.info(f"Seller {store['owner_email']} paid via Stripe Connect — no balance credit")
+    else:
+        # Money went to DropOne — add to seller's withdrawable balance
+        db.update_user_earnings(store["owner_email"], seller_margin)
+        logger.info(f"Seller {store['owner_email']} credited €{seller_margin} to balance")
+
     db.record_network_sale(
-        product_id=store.get("product_id", ""),
+        product_id=product_id,
         product_name=product.get("name", ""),
         category=product.get("category", ""),
         amount=amount_paid,
@@ -637,6 +759,80 @@ async def _process_completed_order(store, customer_email, customer_name,
     db.update_user_xp(store["owner_email"], xp)
     db.update_user_streak(store["owner_email"])
 
+    # -----------------------------------------------------------------------
+    # PLACE REAL CJ ORDER — ship the product to the customer
+    # -----------------------------------------------------------------------
+    try:
+        cj_vid = product.get("cj_vid", "")
+        cj_pid = product.get("cj_pid", "")
+
+        # Get cj_pid from catalog if not in store's product_data
+        if not cj_pid and product_id:
+            await catalog_mod.ensure_catalog()
+            cat_product = get_product(product_id)
+            if cat_product:
+                cj_pid = cat_product.get("cj_pid", "")
+
+        # Get variant ID from CJ product detail
+        if not cj_vid and cj_pid:
+            detail = await cj_client.get_product(cj_pid)
+            if detail and detail.get("variants"):
+                cj_vid = detail["variants"][0].get("vid", "")
+                logger.info(f"Got CJ vid={cj_vid} from pid={cj_pid}")
+
+        # Fallback: search by name
+        if not cj_vid:
+            cj_result = await cj_client.search_products(product.get("name", ""), page=1, page_size=1)
+            if cj_result:
+                pid = cj_result[0].get("pid", "")
+                if pid:
+                    detail = await cj_client.get_product(pid)
+                    if detail and detail.get("variants"):
+                        cj_vid = detail["variants"][0].get("vid", "")
+                        logger.info(f"Found CJ vid={cj_vid} via name search")
+
+        if cj_vid and shipping_address:
+            addr = shipping_address if isinstance(shipping_address, dict) else {}
+            # Handle both Stripe and PayPal address field names
+            country = addr.get("country") or addr.get("country_code") or "FR"
+            province = addr.get("state") or addr.get("admin_area_1") or addr.get("province") or ""
+            city = addr.get("city") or addr.get("admin_area_2") or ""
+            line1 = addr.get("line1") or addr.get("address_line_1") or ""
+            line2 = addr.get("line2") or addr.get("address_line_2") or ""
+            postal = addr.get("postal_code") or ""
+
+            cj_result = await cj_client.place_order(
+                vid=cj_vid,
+                quantity=1,
+                name=customer_name or "Customer",
+                phone=addr.get("phone", ""),
+                country_code=country,
+                province=province,
+                city=city,
+                address=f"{line1} {line2}".strip(),
+                zip_code=postal,
+                our_order_id=order_id,
+            )
+
+            if cj_result.get("success"):
+                cj_order_id = cj_result["cj_order_id"]
+                logger.info(f"CJ order placed: {cj_order_id} for {order_id}")
+
+                # Confirm/pay the CJ order
+                await cj_client.confirm_order(cj_order_id)
+
+                # Update our order with CJ reference
+                db.update_order_supplier(order_id, cj_order_id)
+            else:
+                logger.error(f"CJ order FAILED for {order_id}: {cj_result.get('error')}")
+                # Order is paid but CJ failed — needs manual intervention
+                db.update_order_status(order_id, "cj_failed", cj_result.get("error", ""))
+        else:
+            logger.warning(f"No CJ vid or address for {order_id} — manual fulfillment needed")
+    except Exception as e:
+        logger.error(f"CJ order error for {order_id}: {e}")
+
+    # Push notification
     try:
         await push_mgr.notify_sale(
             seller_email=store["owner_email"],
@@ -660,31 +856,23 @@ async def cj_webhook(request: Request):
     cj_order_id = payload.get("orderId", "")
     tracking = payload.get("trackingNumber", "")
     carrier = payload.get("logisticsName", "")
-    status = payload.get("orderStatus", "")
 
     if not cj_order_id:
         return {"received": True}
 
-    # Find matching order by supplier_order_id
-    # Search in recent orders
     logger.info(f"CJ webhook: type={event_type} order={cj_order_id} tracking={tracking}")
 
     if tracking:
-        # Try to find order and update tracking
         try:
-            dbc = db.get_db()
-            res = dbc.table("orders").select("order_id,store_slug") \
-                .eq("supplier_order_id", cj_order_id).execute()
-            if res.data:
-                order = res.data[0]
+            order = db.get_order_by_supplier_id(cj_order_id)
+            if order:
                 db.update_order(order["order_id"], {
                     "tracking_number": tracking,
-                    "carrier": carrier,
+                    "logistics_name": carrier,
                     "status": "shipped",
-                    "shipped_at": datetime.utcnow().isoformat(),
                 })
                 # Notify seller
-                store = db.get_store(order["store_slug"])
+                store = db.get_store(order.get("store_slug", ""))
                 if store:
                     try:
                         await push_mgr.notify_shipped(
@@ -695,6 +883,8 @@ async def cj_webhook(request: Request):
                         )
                     except Exception:
                         pass
+            else:
+                logger.warning(f"CJ webhook: no order found for supplier_id={cj_order_id}")
         except Exception as e:
             logger.error(f"CJ webhook processing: {e}")
 
@@ -814,11 +1004,13 @@ async def network_profile(email: str):
 # ---------------------------------------------------------------------------
 @app.get("/api/collections")
 async def list_collections():
+    await catalog_mod.ensure_catalog()
     return {"collections": get_collections()}
 
 
 @app.get("/api/collections/{collection_id}")
 async def get_collection_detail(collection_id: str):
+    await catalog_mod.ensure_catalog()
     col = get_collection(collection_id)
     if not col:
         raise HTTPException(404, "Collection not found")
@@ -827,6 +1019,7 @@ async def get_collection_detail(collection_id: str):
 
 @app.get("/api/products/{product_id}/upsells")
 async def get_upsells(product_id: str, limit: int = 3):
+    await catalog_mod.ensure_catalog()
     return {"upsells": suggest_upsells(product_id, limit=limit)}
 
 
@@ -858,6 +1051,14 @@ async def create_multi_store(request: Request):
     col = get_collection(collection_id)
     if not col:
         raise HTTPException(404, "Collection not found")
+
+    # Check store limit BEFORE creating
+    active_count = db.count_active_stores(user_email)
+    products_count = len(col.get("products", []))
+    if active_count + products_count > 10:
+        raise HTTPException(400,
+            f"Maximum 10 boutiques actives. Vous en avez {active_count}, "
+            f"cette collection en ajoute {products_count}. Archivez-en d'abord.")
 
     db.get_or_create_user(user_email)
     created = []
@@ -906,13 +1107,12 @@ async def create_multi_store(request: Request):
 async def update_price(slug: str, request: Request):
     body = await request.json()
     new_price = float(body.get("new_price", 0))
-    email = body.get("email", "")
+    email = _require_user(body.get("email", ""))
 
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if email and store.get("owner_email") != email:
-        raise HTTPException(403, "Not your store")
+    _require_owner(email, store)
     if new_price < float(store["supplier_cost"]) * 1.1:
         raise HTTPException(400, "Price too low")
 
@@ -926,17 +1126,58 @@ async def update_price(slug: str, request: Request):
 @app.put("/api/stores/{slug}/toggle")
 async def toggle_store(slug: str, request: Request):
     body = await request.json()
-    email = body.get("email", "")
+    email = _require_user(body.get("email", ""))
 
     store = db.get_store(slug)
     if not store:
         raise HTTPException(404, "Store not found")
-    if email and store.get("owner_email") != email:
-        raise HTTPException(403, "Not your store")
+    _require_owner(email, store)
 
     new_active = not store.get("active", True)
     db.update_store(slug, {"active": new_active})
     return {"active": new_active}
+
+
+@app.put("/api/stores/{slug}/archive")
+async def archive_store(slug: str, request: Request):
+    """Archive a store — hidden from dashboard, link still works."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    db.archive_store(slug)
+    return {"status": "archived", "slug": slug}
+
+
+@app.put("/api/stores/{slug}/unarchive")
+async def unarchive_store(slug: str, request: Request):
+    """Restore an archived store."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    # Check active store limit
+    if db.count_active_stores(email) >= 10:
+        raise HTTPException(400, "Maximum 10 boutiques actives. Archivez-en une d'abord.")
+    db.unarchive_store(slug)
+    return {"status": "active", "slug": slug}
+
+
+@app.delete("/api/stores/{slug}")
+async def delete_store(slug: str, request: Request):
+    """Soft delete a store."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    store = db.get_store(slug)
+    if not store:
+        raise HTTPException(404, "Store not found")
+    _require_owner(email, store)
+    db.soft_delete_store(slug)
+    return {"status": "deleted", "slug": slug}
 
 
 # ---------------------------------------------------------------------------
@@ -963,6 +1204,318 @@ async def get_share_content(slug: str):
         },
         "copy_link": url,
     }
+
+
+# ---------------------------------------------------------------------------
+# Seller Payment — Stripe Connect
+# ---------------------------------------------------------------------------
+@app.post("/api/seller/connect-stripe")
+async def seller_connect_stripe(request: Request):
+    """Create a Stripe Connect Express onboarding link for the seller."""
+    body = await request.json()
+    email = body.get("email", "")
+    if not email:
+        raise HTTPException(400, "Email required")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Check if already has a Stripe account
+    existing_id = user.get("stripe_account_id")
+    if existing_id:
+        # Create new login link for existing account
+        try:
+            link = stripe.AccountLink.create(
+                account=existing_id,
+                refresh_url=f"{APP_URL}/app?tab=profile&stripe=refresh",
+                return_url=f"{APP_URL}/app?tab=profile&stripe=success",
+                type="account_onboarding",
+            )
+            return {"onboarding_url": link.url, "account_id": existing_id}
+        except stripe.StripeError:
+            pass  # Account may be invalid, create new one
+
+    # Create new Express account
+    try:
+        account = stripe.Account.create(
+            type="express",
+            email=email,
+            capabilities={
+                "card_payments": {"requested": True},
+                "transfers": {"requested": True},
+            },
+            metadata={"dropone_email": email},
+        )
+        db.update_seller_payment(email, {"stripe_account_id": account.id, "payout_method": "stripe"})
+
+        link = stripe.AccountLink.create(
+            account=account.id,
+            refresh_url=f"{APP_URL}/app?tab=profile&stripe=refresh",
+            return_url=f"{APP_URL}/app?tab=profile&stripe=success",
+            type="account_onboarding",
+        )
+        return {"onboarding_url": link.url, "account_id": account.id}
+    except stripe.StripeError as e:
+        raise HTTPException(400, f"Stripe error: {e}")
+
+
+@app.get("/api/seller/stripe-status/{email}")
+async def seller_stripe_status(email: str):
+    """Check if seller's Stripe Connect account is ready."""
+    user = db.get_user(email)
+    if not user or not user.get("stripe_account_id"):
+        return {"connected": False, "charges_enabled": False, "payouts_enabled": False}
+    try:
+        acct = stripe.Account.retrieve(user["stripe_account_id"])
+        connected = acct.charges_enabled and acct.payouts_enabled
+        if connected and user.get("payout_method") != "stripe":
+            db.update_seller_payment(email, {"payout_method": "stripe"})
+        return {
+            "connected": connected,
+            "charges_enabled": acct.charges_enabled,
+            "payouts_enabled": acct.payouts_enabled,
+            "account_id": user["stripe_account_id"],
+        }
+    except stripe.StripeError:
+        return {"connected": False, "charges_enabled": False, "payouts_enabled": False}
+
+
+@app.get("/api/seller/stripe-dashboard/{email}")
+async def seller_stripe_dashboard(email: str):
+    """Get a Stripe Express Dashboard login link for the seller."""
+    user = db.get_user(email)
+    if not user or not user.get("stripe_account_id"):
+        raise HTTPException(404, "No Stripe account linked")
+    try:
+        link = stripe.Account.create_login_link(user["stripe_account_id"])
+        return {"dashboard_url": link.url}
+    except stripe.StripeError as e:
+        raise HTTPException(400, str(e))
+
+
+# ---------------------------------------------------------------------------
+# Seller Payment — PayPal
+# ---------------------------------------------------------------------------
+@app.post("/api/seller/set-paypal")
+async def seller_set_paypal(request: Request):
+    """Set seller's PayPal email for payouts."""
+    body = await request.json()
+    email = body.get("email", "")
+    paypal_email = body.get("paypal_email", "")
+    if not email or not paypal_email:
+        raise HTTPException(400, "email and paypal_email required")
+    if not EMAIL_RE.match(paypal_email):
+        raise HTTPException(400, "Invalid PayPal email")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    db.update_seller_payment(email, {
+        "paypal_email": paypal_email.lower().strip(),
+        "payout_method": "paypal" if not user.get("stripe_account_id") else user.get("payout_method", "paypal"),
+    })
+    return {"paypal_email": paypal_email, "payout_method": "paypal"}
+
+
+# ---------------------------------------------------------------------------
+# Seller Balance & Withdrawals
+# ---------------------------------------------------------------------------
+@app.get("/api/seller/balance/{email}")
+async def seller_balance(email: str):
+    """Get seller's current balance, payment method, and payout history."""
+    _require_user(email)
+    user = db.get_user(email)
+    if not user:
+        return {"balance": 0, "total_earned": 0, "total_withdrawn": 0,
+                "payout_method": None, "paypal_email": None, "stripe_connected": False}
+
+    balance = round(float(user.get("balance") or 0), 2)
+    total_earned = round(float(user.get("total_earnings") or 0), 2)
+    total_withdrawn = round(float(user.get("total_withdrawn") or 0), 2)
+
+    return {
+        "balance": balance,
+        "total_earned": total_earned,
+        "total_withdrawn": total_withdrawn,
+        "payout_method": user.get("payout_method"),
+        "paypal_email": user.get("paypal_email"),
+        "stripe_connected": bool(user.get("stripe_account_id")),
+        "min_withdrawal": 10.0,
+    }
+
+
+@app.post("/api/seller/withdraw")
+async def seller_withdraw(request: Request):
+    """Request a withdrawal. Minimum €10."""
+    body = await request.json()
+    email = _require_user(body.get("email", ""))
+    amount = float(body.get("amount", 0))
+
+    if not _check_rate_limit(f"withdraw:{email}", max_req=3, window=300):
+        raise HTTPException(429, "Trop de retraits. Réessayez dans 5 minutes.")
+    if amount < 10:
+        raise HTTPException(400, "Minimum withdrawal: €10")
+
+    user = db.get_user(email)
+    if not user:
+        raise HTTPException(404, "User not found")
+
+    # Use balance field only — never fallback to total_earnings
+    balance = round(float(user.get("balance") or 0), 2)
+    if balance <= 0:
+        raise HTTPException(400, f"Solde à zéro")
+    if amount > balance:
+        raise HTTPException(400, f"Insufficient balance (€{balance})")
+
+    method = user.get("payout_method")
+    if not method:
+        raise HTTPException(400, "Configure your payment method first (Stripe or PayPal)")
+
+    payout_id = f"PO-{uuid.uuid4().hex[:8].upper()}"
+    payout_status = "pending"
+    payout_error = ""
+
+    # --- Stripe Connect Transfer ---
+    if method == "stripe" and user.get("stripe_account_id"):
+        try:
+            transfer = stripe.Transfer.create(
+                amount=int(amount * 100),
+                currency="eur",
+                destination=user["stripe_account_id"],
+                description=f"DropOne payout {payout_id}",
+                metadata={"email": email, "payout_id": payout_id},
+            )
+            payout_status = "completed"
+            logger.info(f"Stripe transfer {transfer.id} → {email}: €{amount}")
+        except stripe.StripeError as e:
+            payout_status = "failed"
+            payout_error = str(e)
+            logger.error(f"Stripe payout failed: {e}")
+
+    # --- PayPal Payout ---
+    elif method == "paypal" and user.get("paypal_email"):
+        try:
+            import httpx as _hx
+            token = await _get_paypal_token()
+            async with _hx.AsyncClient(timeout=15) as client:
+                resp = await client.post(
+                    f"{PAYPAL_BASE}/v1/payments/payouts",
+                    headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                    json={
+                        "sender_batch_header": {
+                            "sender_batch_id": payout_id,
+                            "email_subject": "Votre paiement DropOne",
+                            "email_message": f"Vous avez reçu €{amount:.2f} de vos ventes DropOne.",
+                        },
+                        "items": [{
+                            "recipient_type": "EMAIL",
+                            "amount": {"value": f"{amount:.2f}", "currency": "EUR"},
+                            "receiver": user["paypal_email"],
+                            "note": f"DropOne payout {payout_id}",
+                            "sender_item_id": payout_id,
+                        }],
+                    },
+                )
+                resp.raise_for_status()
+                payout_status = "completed"
+                logger.info(f"PayPal payout → {user['paypal_email']}: €{amount}")
+        except Exception as e:
+            payout_status = "failed"
+            payout_error = str(e)
+            logger.error(f"PayPal payout failed: {e}")
+    else:
+        raise HTTPException(400, "Payment method not properly configured")
+
+    # Record payout
+    db.create_payout({
+        "payout_id": payout_id, "email": email, "amount": amount,
+        "method": method, "status": payout_status, "error": payout_error,
+    })
+
+    # Update balance
+    if payout_status == "completed":
+        new_balance = round(balance - amount, 2)
+        new_withdrawn = round(float(user.get("total_withdrawn") or 0) + amount, 2)
+        db.update_seller_payment(email, {"balance": new_balance, "total_withdrawn": new_withdrawn})
+
+    if payout_status == "failed":
+        raise HTTPException(500, f"Payout failed: {payout_error}")
+
+    return {"payout_id": payout_id, "amount": amount, "method": method,
+            "status": payout_status, "new_balance": round(balance - amount, 2)}
+
+
+@app.get("/api/seller/payouts/{email}")
+async def seller_payouts(email: str):
+    """Get payout history for a seller."""
+    return {"payouts": db.get_payouts(email)}
+
+
+# ---------------------------------------------------------------------------
+# CJ Dropshipping — Product Search & Health
+# ---------------------------------------------------------------------------
+@app.get("/api/cj/health")
+async def cj_health():
+    """Test CJ API connectivity."""
+    return await cj_client.health()
+
+
+@app.get("/api/cj/search")
+async def cj_search(q: str, page: int = 1):
+    """Search real CJ products."""
+    products = await cj_client.search_products(q, page=page, page_size=10)
+    return {
+        "query": q,
+        "count": len(products),
+        "products": [
+            {
+                "pid": p.get("pid", ""),
+                "name": p.get("productNameEn", ""),
+                "image": p.get("productImage", ""),
+                "price": p.get("sellPrice", 0),
+                "category": p.get("categoryName", ""),
+            }
+            for p in products
+        ],
+    }
+
+
+@app.get("/api/cj/product/{pid}")
+async def cj_product_detail(pid: str):
+    """Get CJ product detail with variants."""
+    detail = await cj_client.get_product(pid)
+    if not detail:
+        raise HTTPException(404, "Product not found on CJ")
+    variants = detail.get("variants", [])
+    return {
+        "pid": detail.get("pid", ""),
+        "name": detail.get("productNameEn", ""),
+        "description": detail.get("description", ""),
+        "image": detail.get("productImage", ""),
+        "images": [img.get("imageUrl", "") for img in detail.get("productImageSet", [])],
+        "sell_price": detail.get("sellPrice", 0),
+        "weight": detail.get("productWeight", 0),
+        "variants": [
+            {"vid": v.get("vid"), "name": v.get("variantNameEn", ""), "price": v.get("variantSellPrice", 0)}
+            for v in variants[:20]
+        ],
+    }
+
+
+@app.get("/api/cj/order/{order_id}/tracking")
+async def cj_order_tracking(order_id: str):
+    """Get tracking for a DropOne order via CJ."""
+    # Find the order in our DB
+    order = db.get_order(order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    cj_oid = order.get("supplier_order_id", "")
+    if not cj_oid:
+        return {"status": order.get("status", "pending"), "tracking": None}
+    tracking = await cj_client.get_tracking(cj_oid)
+    return {"status": order.get("status", ""), "tracking": tracking}
 
 
 # ---------------------------------------------------------------------------

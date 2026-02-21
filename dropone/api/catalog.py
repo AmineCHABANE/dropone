@@ -1,11 +1,9 @@
 """
-DropOne — Dynamic Product Catalog v4.0
+DropOne — Dynamic Product Catalog v3.1
 Auto-syncs from CJ Dropshipping API.
 - Supabase persistent cache (survives Vercel cold starts)
 - Concurrent API calls (fits in 10s Vercel timeout)
-- Weekly cron sync with query rotation (Set A / Set B every 2 weeks)
-- Dead product cleanup (removes 404 / out-of-stock)
-- Callable via external cron (cron-job.org)
+- Quick sync fallback for first load
 """
 
 import os
@@ -14,7 +12,6 @@ import time
 import asyncio
 import logging
 import hashlib
-from datetime import datetime
 from typing import Optional
 
 logger = logging.getLogger("dropone.catalog")
@@ -22,55 +19,40 @@ logger = logging.getLogger("dropone.catalog")
 # ---------------------------------------------------------------------------
 # CONFIG
 # ---------------------------------------------------------------------------
-CACHE_TTL = 7 * 24 * 3600   # 7 days (weekly sync)
-MARGIN_MULTIPLIER = 2.5      # 60% margin
+CACHE_TTL = 6 * 3600  # 6 hours
+MARGIN_MULTIPLIER = 2.5  # 60% margin
 MIN_MARGIN_MULTIPLIER = 2.0
 MAX_PRICE = 99.99
 PRODUCTS_PER_QUERY = 20
-CONCURRENT_BATCH = 24        # All queries at once
+CONCURRENT_BATCH = 24  # All queries at once
 
-# ---------------------------------------------------------------------------
-# QUERY ROTATION — Set A / Set B alternate every 2 weeks
-# Keeps the catalog fresh without losing best-sellers
-# ---------------------------------------------------------------------------
-CATEGORY_QUERIES_A = {
-    "tech": ["wireless earbuds bluetooth speaker"],
-    "beauty": ["face massager roller skincare"],
-    "home": ["LED projector lamp diffuser"],
-    "fitness": ["massage gun resistance bands"],
-    "kitchen": ["portable blender frother kitchen"],
-    "pet": ["pet brush hair remover dog"],
-    "fashion": ["sunglasses bag crossbody"],
-    "auto": ["car vacuum dash cam LED"],
+# 1 broad query per category = 8 total (fits easily in Vercel 10s)
+CATEGORY_QUERIES = {
+    "tech": [
+        "wireless earbuds bluetooth speaker",
+    ],
+    "beauty": [
+        "face massager roller skincare",
+    ],
+    "home": [
+        "LED projector lamp diffuser",
+    ],
+    "fitness": [
+        "massage gun resistance bands",
+    ],
+    "kitchen": [
+        "portable blender frother kitchen",
+    ],
+    "pet": [
+        "pet brush hair remover dog",
+    ],
+    "fashion": [
+        "sunglasses bag crossbody",
+    ],
+    "auto": [
+        "car vacuum dash cam LED",
+    ],
 }
-
-CATEGORY_QUERIES_B = {
-    "tech": ["smart watch TWS headphones charger"],
-    "beauty": ["LED face mask serum derma roller"],
-    "home": ["moon lamp humidifier organizer"],
-    "fitness": ["yoga mat jump rope posture corrector"],
-    "kitchen": ["egg cooker spice grinder electric"],
-    "pet": ["cat toy automatic feeder collar"],
-    "fashion": ["minimalist watch tote bag jewelry"],
-    "auto": ["car phone mount LED strip interior"],
-}
-
-
-def _get_active_queries() -> dict:
-    """Return Set A or Set B based on ISO week number (rotates every 2 weeks)."""
-    week = datetime.utcnow().isocalendar()[1]
-    if (week // 2) % 2 == 0:
-        return CATEGORY_QUERIES_A
-    return CATEGORY_QUERIES_B
-
-
-def _get_active_set_name() -> str:
-    week = datetime.utcnow().isocalendar()[1]
-    return "A" if (week // 2) % 2 == 0 else "B"
-
-
-# Backwards-compatible default
-CATEGORY_QUERIES = CATEGORY_QUERIES_A
 
 CATEGORY_TAGS = {
     "tech": ["gadget", "trending"],
@@ -115,19 +97,15 @@ def _save_to_supabase(products: list):
     if not url:
         return
     try:
-        blob = json.dumps({
-            "products": products,
-            "synced_at": time.time(),
-            "query_set": _get_active_set_name(),
-            "product_count": len(products),
-        })
+        blob = json.dumps({"products": products, "synced_at": time.time()})
+        # Upsert single row with id="catalog"
         httpx.post(
             f"{url}/rest/v1/kv_cache",
             headers={**_supabase_headers(), "Prefer": "resolution=merge-duplicates"},
             json={"id": "cj_catalog", "value": blob},
             timeout=5,
         )
-        logger.info(f"Saved {len(products)} products to Supabase cache (set {_get_active_set_name()})")
+        logger.info(f"Saved {len(products)} products to Supabase cache")
     except Exception as e:
         logger.warning(f"Supabase cache save failed: {e}")
 
@@ -150,29 +128,11 @@ def _load_from_supabase() -> tuple:
             data = json.loads(rows[0]["value"])
             products = data.get("products", [])
             synced_at = data.get("synced_at", 0)
-            logger.info(f"Loaded {len(products)} from Supabase (age: {(time.time()-synced_at)/3600:.1f}h)")
+            logger.info(f"Loaded {len(products)} products from Supabase cache (age: {(time.time()-synced_at)/60:.0f}min)")
             return products, synced_at
     except Exception as e:
         logger.warning(f"Supabase cache load failed: {e}")
     return [], 0
-
-
-def _save_sync_log(stats: dict):
-    """Save sync history for monitoring."""
-    import httpx
-    url = _supabase_url()
-    if not url:
-        return
-    try:
-        blob = json.dumps(stats)
-        httpx.post(
-            f"{url}/rest/v1/kv_cache",
-            headers={**_supabase_headers(), "Prefer": "resolution=merge-duplicates"},
-            json={"id": f"sync_log_{int(time.time())}", "value": blob},
-            timeout=5,
-        )
-    except Exception:
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -213,9 +173,9 @@ def _transform(cj_product: dict, category: str, query: str, index: int) -> Optio
 
     images = [image] if image else []
     for img in cj_product.get("productImageSet", [])[:3]:
-        u = img.get("imageUrl", "") if isinstance(img, dict) else str(img)
-        if u and u not in images:
-            images.append(u)
+        url = img.get("imageUrl", "") if isinstance(img, dict) else str(img)
+        if url and url not in images:
+            images.append(url)
 
     if len(name) > 60:
         name = name[:57] + "..."
@@ -253,76 +213,12 @@ def _transform(cj_product: dict, category: str, query: str, index: int) -> Optio
 
 
 # ---------------------------------------------------------------------------
-# DEAD PRODUCT CLEANUP
-# ---------------------------------------------------------------------------
-async def _check_product_alive(cj_client_mod, cj_pid: str) -> bool:
-    """Check if a CJ product still exists and has variants."""
-    try:
-        detail = await cj_client_mod.get_product(cj_pid)
-        if not detail:
-            return False
-        variants = detail.get("variants", [])
-        return bool(variants)
-    except Exception:
-        return False
-
-
-async def cleanup_dead_products(max_checks: int = 30) -> dict:
-    """Remove products that are dead on CJ (404 / no variants).
-
-    Checks a batch each sync to stay within API limits.
-    """
-    import cj_client as cj_mod
-
-    products = _cache["products"]
-    if not products:
-        return {"checked": 0, "removed": 0, "alive": 0, "dead_names": []}
-
-    to_check = products[:max_checks]
-    dead_pids = set()
-    alive_count = 0
-
-    # Check in batches of 5
-    for i in range(0, len(to_check), 5):
-        batch = to_check[i:i+5]
-        tasks = [_check_product_alive(cj_mod, p["cj_pid"]) for p in batch]
-        try:
-            results = await asyncio.wait_for(
-                asyncio.gather(*tasks, return_exceptions=True),
-                timeout=15.0,
-            )
-            for p, result in zip(batch, results):
-                if isinstance(result, Exception) or not result:
-                    dead_pids.add(p["cj_pid"])
-                    logger.info(f"Dead product: {p['name']} ({p['cj_pid']})")
-                else:
-                    alive_count += 1
-        except asyncio.TimeoutError:
-            logger.warning("Cleanup batch timed out, skipping rest")
-            break
-
-    # Remove dead
-    dead_names = [p["name"] for p in to_check if p["cj_pid"] in dead_pids]
-    if dead_pids:
-        before = len(products)
-        _cache["products"] = [p for p in products if p["cj_pid"] not in dead_pids]
-        logger.info(f"Cleaned {before - len(_cache['products'])} dead products")
-
-    return {
-        "checked": alive_count + len(dead_pids),
-        "removed": len(dead_pids),
-        "alive": alive_count,
-        "dead_names": dead_names,
-    }
-
-
-# ---------------------------------------------------------------------------
 # SYNC
 # ---------------------------------------------------------------------------
-async def _fetch_query(cj_client_mod, query: str, category: str) -> list:
+async def _fetch_query(cj_client, query: str, category: str) -> list:
     """Fetch one CJ query, return transformed products."""
     try:
-        results = await cj_client_mod.search_products(query, page=1, page_size=PRODUCTS_PER_QUERY)
+        results = await cj_client.search_products(query, page=1, page_size=PRODUCTS_PER_QUERY)
         products = []
         for idx, cj_prod in enumerate(results):
             p = _transform(cj_prod, category, query, idx)
@@ -334,41 +230,38 @@ async def _fetch_query(cj_client_mod, query: str, category: str) -> list:
         return []
 
 
-async def sync_catalog(use_rotation: bool = False):
-    """Sync catalog from CJ API using concurrent requests.
-
-    Args:
-        use_rotation: If True, uses the rotating query set (A/B).
-    """
+async def sync_catalog():
+    """Sync catalog from CJ API using concurrent requests."""
     if _cache["syncing"]:
         return
     _cache["syncing"] = True
-
-    queries = _get_active_queries() if use_rotation else CATEGORY_QUERIES
-    set_name = _get_active_set_name() if use_rotation else "A"
-    logger.info(f"Starting CJ catalog sync (set {set_name})...")
+    logger.info("Starting CJ catalog sync...")
 
     try:
-        import cj_client as cj_mod
+        import cj_client
 
+        # Build all (query, category) pairs
         tasks = []
-        for category, query_list in queries.items():
-            for query in query_list:
+        for category, queries in CATEGORY_QUERIES.items():
+            for query in queries:
                 tasks.append((query, category))
 
         all_products = []
         seen_pids = set()
 
+        # Execute in concurrent batches with timeout protection
+        import asyncio
         for i in range(0, len(tasks), CONCURRENT_BATCH):
             batch = tasks[i:i + CONCURRENT_BATCH]
-            coros = [_fetch_query(cj_mod, q, cat) for q, cat in batch]
+            coros = [_fetch_query(cj_client, q, cat) for q, cat in batch]
             try:
+                # 8s timeout per batch — leaves room for Vercel's 10s limit
                 results = await asyncio.wait_for(
                     asyncio.gather(*coros, return_exceptions=True),
                     timeout=8.0,
                 )
             except asyncio.TimeoutError:
-                logger.warning(f"Batch {i//CONCURRENT_BATCH + 1} timed out")
+                logger.warning(f"Batch {i//CONCURRENT_BATCH + 1} timed out, using partial results")
                 break
 
             for result in results:
@@ -384,13 +277,13 @@ async def sync_catalog(use_rotation: bool = False):
             _cache["products"] = all_products
             _cache["last_sync"] = time.time()
 
+            # Persist to Supabase (non-blocking)
             try:
                 _save_to_supabase(all_products)
             except Exception:
                 pass
 
-            logger.info(f"CJ sync OK: {len(all_products)} products, "
-                        f"{len(set(p['category'] for p in all_products))} categories (set {set_name})")
+            logger.info(f"CJ sync OK: {len(all_products)} products, {len(set(p['category'] for p in all_products))} categories")
         else:
             logger.error("CJ sync: 0 products returned, keeping previous cache")
 
@@ -398,53 +291,6 @@ async def sync_catalog(use_rotation: bool = False):
         logger.error(f"Catalog sync error: {e}")
     finally:
         _cache["syncing"] = False
-
-
-async def weekly_sync() -> dict:
-    """Full weekly sync: rotate queries + fetch + cleanup dead products.
-
-    Called by /api/cron/catalog-sync (external cron, 1x/week).
-    Returns detailed stats for logging.
-    """
-    start = time.time()
-    old_count = len(_cache["products"])
-
-    # Step 1: Sync with rotated queries
-    await sync_catalog(use_rotation=True)
-    new_count = len(_cache["products"])
-
-    # Step 2: Clean dead products
-    cleanup_stats = {"checked": 0, "removed": 0, "alive": 0, "dead_names": []}
-    try:
-        cleanup_stats = await cleanup_dead_products(max_checks=30)
-        if cleanup_stats["removed"] > 0:
-            _save_to_supabase(_cache["products"])
-    except Exception as e:
-        logger.error(f"Cleanup error: {e}")
-
-    final_count = len(_cache["products"])
-    elapsed = round(time.time() - start, 1)
-
-    stats = {
-        "success": True,
-        "elapsed_seconds": elapsed,
-        "query_set": _get_active_set_name(),
-        "products_before": old_count,
-        "products_fetched": new_count,
-        "products_after_cleanup": final_count,
-        "cleanup": cleanup_stats,
-        "categories": len(set(p["category"] for p in _cache["products"])) if _cache["products"] else 0,
-        "synced_at": datetime.utcnow().isoformat() + "Z",
-    }
-
-    try:
-        _save_sync_log(stats)
-    except Exception:
-        pass
-
-    logger.info(f"Weekly sync done in {elapsed}s: {final_count} products "
-                f"(fetched={new_count}, removed={cleanup_stats['removed']})")
-    return stats
 
 
 async def ensure_catalog():
@@ -455,7 +301,7 @@ async def ensure_catalog():
     if _cache["products"] and (now - _cache["last_sync"]) < CACHE_TTL:
         return
 
-    # 2. Try Supabase persistent cache
+    # 2. Try Supabase persistent cache (instant, survives cold starts)
     if not _cache["products"]:
         products, synced_at = _load_from_supabase()
         if products and (now - synced_at) < CACHE_TTL:
@@ -464,6 +310,7 @@ async def ensure_catalog():
             logger.info(f"Catalog loaded from Supabase: {len(products)} products")
             return
         elif products:
+            # Stale but usable — serve while refreshing
             _cache["products"] = products
             _cache["last_sync"] = synced_at
             logger.info(f"Stale catalog from Supabase: {len(products)} products, will refresh")
@@ -520,9 +367,8 @@ def get_catalog_stats() -> dict:
         "total_products": len(products),
         "categories": len(set(p["category"] for p in products)),
         "last_sync": _cache["last_sync"],
-        "cache_age_hours": round((now - _cache["last_sync"]) / 3600, 1) if _cache["last_sync"] else None,
-        "next_sync_hours": round((CACHE_TTL - (now - _cache["last_sync"])) / 3600, 1) if _cache["last_sync"] else 0,
+        "cache_age_minutes": round((now - _cache["last_sync"]) / 60, 1) if _cache["last_sync"] else None,
+        "next_sync_minutes": round((CACHE_TTL - (now - _cache["last_sync"])) / 60, 1) if _cache["last_sync"] else 0,
         "avg_margin": round(sum(p["margin_pct"] for p in products) / len(products), 1) if products else 0,
-        "query_set": _get_active_set_name(),
         "source": "supabase_cache" if _cache["last_sync"] else "empty",
     }
