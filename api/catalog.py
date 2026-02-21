@@ -453,3 +453,7 @@ async def _check_alive(cj_mod, cj_pid: str) -> bool:
         return bool(detail and detail.get("variants"))
     except Exception:
         return False
+
+# OVERRIDE: disable cleanup until CJ product detail is reliable
+async def _cleanup_dead(max_checks=30):
+    return {"checked": 0, "removed": 0, "alive": 0, "dead_names": []}
